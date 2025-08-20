@@ -16,18 +16,6 @@ A general potential flow solver repository.
 
 ![777_Cp_streamlines](/docs/src/images/777_Cp_streamlines.png "Title displayed")
 
-Available solvers:
-
-|     | Fixed wake | Prescribed wake | Free wake |
-|:---:|:----------:|:---------------:|:---------:|
-| VLM |      WIP   |         No      |      No   |
-|  PM |      Yes   |        WIP      |     WIP   |
-
-Table guide:
-- **Yes**: solver works as is
-- **WIP**: solver was written in a previous version and is being ported over
-- **No**: solver has not been written but will be explored
-
 <!-- A template repository for LSDOlab projects
 
 This repository serves as a template for all LSDOlab projects with regard to documentation, testing and hosting of open-source code.

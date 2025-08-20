@@ -11,6 +11,19 @@ VortexAD is a general purpose potential flow solver library for aerodynamic anal
 
 VortexAD is built on CSDL, a graph-based modeling framework also developed at the LSDO Lab.
 
+Available solvers:
+
+|     | Fixed wake | Prescribed wake | Free wake |
+|:---:|:----------:|:---------------:|:---------:|
+| VLM |      WIP   |         No      |      No   |
+|  PM |      Yes   |        WIP      |     WIP   |
+
+Table guide:
+- **Yes**: solver works as is
+- **WIP**: solver was written in a previous version and is being ported over
+- **No**: solver has not been written but will be explored
+
+
 # Cite us
 ```none
 @inbook{doi:10.2514/6.2025-3021,
