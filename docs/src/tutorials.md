@@ -1,6 +1,8 @@
 # Tutorials
 
-These tutorials are generated from Jupyter notebooks (.ipynb) and
+WORK IN PROGRESS
+
+<!-- These tutorials are generated from Jupyter notebooks (.ipynb) and
 walks the reader through Python scripts providing detailed
 step-by-step instructions.
 Each tutorial contains mix of code and text that shows the
@@ -11,9 +13,9 @@ It is recommeded that the tutorials also include mathematical equations and outp
 from running the script for better understanding for the users.
 
 If no classification of tutorials is required, just remove the subpages for tutorials
-and add the tutorial files directly into the toctree of this main tutorials page.
+and add the tutorial files directly into the toctree of this main tutorials page. -->
 
-```{toctree}
+<!-- ```{toctree}
 :maxdepth: 2
 :caption: List of tutorials
 :titlesonly:
@@ -22,4 +24,4 @@ and add the tutorial files directly into the toctree of this main tutorials page
 
 tutorials/basic
 tutorials/advanced
-```
+``` -->

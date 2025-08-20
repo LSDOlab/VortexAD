@@ -26,7 +26,7 @@ $ pip install -e ./VortexAD
 ```
 **Enabled by**: Copying the setup.py file, and changing your repository name and version.
 
-## Setting up Documentation
+<!-- ## Setting up Documentation
 
 If you are not interested in using this repository as a template but only want to use the documentation template, 
 just copy the `/docs` directory and the `.readthedocs.yaml` file into your package root.
@@ -61,4 +61,4 @@ you will see your documentation online.
 The default website address will be generated based on your *Read the Docs* project name as `https://<proj_name>.readthedocs.io/`.
 You can also customize the URL on *Read the Docs*, if needed.
 
-## Setting up Testing
+## Setting up Testing -->

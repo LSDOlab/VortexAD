@@ -292,8 +292,9 @@ class PanelMethod(object):
 
         return self.TE_data
     
-    def plot():
-        pass
+    def plot(self, data_to_plot, bounds=None, cmap='jet'):
+        from VortexAD.utils.plotting.plot_unstructured import plot_pressure_distribution
+        plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=self.cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap)
     
     # def conduct_off_body_analysis(self, eval_pts):
     #     velocity = off_body_analysis(eval_pts)

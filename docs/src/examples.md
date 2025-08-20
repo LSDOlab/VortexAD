@@ -1,6 +1,8 @@
 # Examples
 
-Unlike tutorials, examples can also be generated from Python files (.py) in addition
+WORK IN PROGRESS
+
+<!-- Unlike tutorials, examples can also be generated from Python files (.py) in addition
 to Jupyter notebooks (.ipynb),
 and is more of a collection of run scripts for reference/benchmarking.
 Examples may contain documentation in the form of comments.
@@ -18,4 +20,4 @@ and add the example files directly into the toctree of this main examples page.
 
 examples/basic
 examples/advanced
-```
+``` -->

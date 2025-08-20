@@ -19,7 +19,7 @@
 project = 'VortexAD'
 copyright = '2025, Luca Scotzniovsky'
 author = 'Luca Scotzniovsky'
-version = '0.1'
+version = '0.0.0'
 # release = 0.1.0rtc
 
 

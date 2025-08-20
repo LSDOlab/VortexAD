@@ -1,17 +1,17 @@
 # Welcome to VortexAD
 
-![777_Cp_streamlines](/src/images/777_Cp_streamlines.png "777 Cp + streamlines")
-
 <!-- This page describes conceptually the purpose of your package at a high-level.
 Start with a one sentence description of your package.
 For example, "This repository serves as a template for all LSDOlab projects with regard to documentation, testing and hosting of open-source code."
 Include figures from the relevant paper and citation. -->
 
-VortexAD is a general purpose potential flow solver library for aerodynamic analysis.
+VortexAD is a general purpose potential flow solver library for aerodynamic analysis. VortexAD is built on CSDL, a graph-based modeling framework also developed at the LSDO Lab.
 
-VortexAD is built on CSDL, a graph-based modeling framework also developed at the LSDO Lab.
+![777_Cp_streamlines](/src/images/777_Cp_streamlines.png "777 Cp + streamlines")
 
-Available solvers:
+
+# Solver toolbox:
+VortexAD aims to serve as a general potential flow solver library. The table below shows the available solvers and modes.
 
 |     | Fixed wake | Prescribed wake | Free wake |
 |:---:|:----------:|:---------------:|:---------:|
@@ -46,6 +46,13 @@ Table guide:
   year={2025}
 } -->
 
+
+# Brought to you by
+
+![LSDO Lab image](/src/images/lsdolab.png "LSDO Lab image")
+
+
+
 <!-- Remove/add custom pages from/to toc as per your package's requirement -->
 
 ```{toctree}
@@ -55,14 +62,10 @@ Table guide:
 src/getting_started
 src/background
 src/tutorials
-src/custom_1
-src/custom_2
+<!-- src/custom_1
+src/custom_2 -->
 src/examples
 src/api
 ```
-
-# Brought to you by
-
-![LSDO Lab image](/src/images/lsdolab.png "LSDO Lab image")
 
 <!-- <img src="/src/images/lsdolab.png" alt="LSDO Lab logo" width="200"/> -->
