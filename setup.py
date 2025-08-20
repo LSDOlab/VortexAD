@@ -20,15 +20,15 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='lsdo_project_template',
-    version=get_version('lsdo_project_template/__init__.py'),
-    author='Author name',
-    author_email='author@gmail.com',
+    name='VortexAD',
+    version=get_version('VortexAD/__init__.py'),
+    author='Luca Scotzniovsky',
+    author_email='lscotzni@ucsd.edu',
     license='LGPLv3+',
-    keywords='python project template repository package',
-    url='http://github.com/LSDOlab/lsdo_project_template',
-    download_url='http://pypi.python.org/pypi/lsdo_project_template',
-    description='A template repository/package for LSDOlab projects',
+    keywords='potential-flow adjoints vlm panel-method',
+    url='http://github.com/LSDOlab/VortexAD',
+    download_url='http://pypi.python.org/pypi/VortexAD',
+    description='A general-purpose repository for potential flow solvers with automatic adjoint-based differentiation.',
     long_description=long_description,
     long_description_content_type='text/markdown',
     packages=find_packages(),
