@@ -1,12 +1,11 @@
-'''NACA0012 rectangular wing: 
+'''Blended wing body across many missions: 
 
-An example written as a Python file (.py) 
-with explanations given as comments. <br>
-Note that the title and description for the example on the web page are generated 
-based on the first docstring in the Python file. <br>
-**Docstring syntax:** *```"""Title: Description (optional)"""```*  <br>
-Refer to examples 2 and 3 for a cleaner demonstration of using the docstring.
+Example of a BWB panel method analysis across many missions. <br>
+We utilize additional solver inputs like compressibility corrections and reusing the AIC matrix.
 
+<br>
+<br>
+Distribution Statement A: Approved for public release; distribution is unlimited. PA# AFRL-2025-3820.
 '''
 
 import numpy as np
@@ -20,16 +19,19 @@ recorder = csdl.Recorder(inline=False)
 recorder.start()
 
 # set up input dictionary
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl'
-pitch = csdl.Variable(value=np.array([5.]))
+mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb.stl'
+num_nodes = 6
+pitch = csdl.Variable(value=np.arange(0,num_nodes))
 
 # input dict
 input_dict = {
-    'Mach': 0.25,
+    'Mach': 0.65,
     'alpha': pitch,
     'Cp cutoff': -5.,
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
-    'ref_area': 10., 
+    'ref_area': 525., 
+    'compressibility': True,
+    'reuse_AIC': True
 }
 
 # instantiate PanelMethod class
@@ -73,4 +75,4 @@ CP_val = sim[CP]
 print('CL:', CL_val)
 print('CDi:', CDi_val)
 
-panel_method.plot(CP_val, bounds=[-4,1])
+panel_method.plot(CP_val[0,:], bounds=[-3,1])

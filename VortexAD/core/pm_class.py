@@ -17,7 +17,7 @@ default_input_dict = {
     'V_inf': None,
     'Mach': None,
     'sos': 340.3, # m/s, 
-    'alpha': None, # user can provide grid of velocities as well
+    'alpha': np.array([0.]), # user can provide grid of velocities as well
     'rho': 1.225, # kg/m^3
     'compressibility': False, # PG correction
     'Cp cutoff': -5., # minimum Cp (numerical reasons)
@@ -90,6 +90,7 @@ class PanelMethod(object):
         self.options_dict = options_dict
 
         self.mesh_filepath = solver_input_dict['mesh_path']
+        self.reuse_AIC = self.options_dict['reuse_AIC']
         
         # self.solver_mode = solver_input_dict['solver_mode'] # steady or unsteady
 
@@ -106,7 +107,6 @@ class PanelMethod(object):
             - scalar
             - vector
             - grid
-        
         '''
         grid_shape = self.points.shape
         nn_grid, num_pts = grid_shape[0], grid_shape[1]
@@ -115,6 +115,8 @@ class PanelMethod(object):
         mach    = self.options_dict['Mach']
         sos     = self.options_dict['sos']
         alpha   = self.options_dict['alpha']
+        # if alpha is None:
+        #     alpha = np.zeros(V_inf.shape)
 
         # checking if V_inf is defined vs. mach #
         if V_inf is None:
@@ -122,12 +124,30 @@ class PanelMethod(object):
                 raise ValueError('Need to define a speed or Mach number')
             else:
                 V_inf = mach*sos
+        # checking num_nodes
+        def check_num_nodes(val):
+            if isinstance(val, float) or isinstance(val, int):
+                nn_val = 1
+            elif isinstance(val, csdl.Variable):
+                nn_val = val.shape[0]
+            else:
+                nn_val = len(val) # list, set or np.array()
+            return nn_val
+
+        nn_V_inf = check_num_nodes(V_inf)
+        nn_V_alpha = check_num_nodes(alpha)
+
+        if nn_V_inf != nn_V_alpha:
+            if nn_V_inf != 1 and nn_V_inf != 1:
+                raise ValueError('Error in defining shape of velocity and inflow angle.')
+            
+        num_nodes = np.max([nn_V_alpha, nn_V_inf])
 
         # converting flow velocity into a grid
 
         # case where V_inf is a scalar and not a csdl variable:
-        if isinstance(V_inf, float) or isinstance(V_inf, int):
-            num_nodes = 1
+        # if isinstance(V_inf, float) or isinstance(V_inf, int):
+        if nn_V_inf == 1:
             V_vec = csdl.Variable(value=0., shape=(num_nodes,3))
             V_vec = V_vec.set(csdl.slice[:,0], value=-V_inf)
             if alpha is None:
@@ -187,6 +207,11 @@ class PanelMethod(object):
         # }
 
     def setup_grid_properties(self, threshold_angle=125):
+        '''
+        Sets up the mesh, cell adjacency, and trailing edge properties.
+
+        The trailing edge can be tweaked using the threshold angle input.
+        '''
         self.import_mesh()
 
         self.compute_cell_adjacency()
@@ -196,12 +221,19 @@ class PanelMethod(object):
         self.grid_properties = True
 
     def declare_outputs(self, outputs):
+        '''
+        Declare outputs to be saved
+        '''
         self.output_name_list = outputs
 
-    def assemble_input_dict(self):
+    def __assemble_input_dict__(self):
+
+        nn_geom = self.num_nodes
+        if self.reuse_AIC:
+            nn_geom = 1
         self.points = csdl.expand(
             self.points,
-            (self.num_nodes,) + self.points.shape,
+            (nn_geom,) + self.points.shape,
             'ij->aij'
         )
 
@@ -219,8 +251,14 @@ class PanelMethod(object):
         }
 
     def evaluate(self):
+        '''
+        Function call to set up and run the panel method.
 
-        self.assemble_input_dict()
+        The output is a dictionary containing the string names set
+        in self.declare_outputs()
+        '''
+
+        self.__assemble_input_dict__()
 
         pm_output_dict, mesh_dict = steady_panel_solver(
             self.orig_mesh_dict,
@@ -235,6 +273,9 @@ class PanelMethod(object):
         return output_dict
 
     def import_mesh(self):
+        '''
+        Importing the mesh using meshio.
+        '''
         mesh = meshio.read(
             self.mesh_filepath
         )
@@ -246,6 +287,9 @@ class PanelMethod(object):
         # _orig bc we update these in the cell_adjacency function
 
     def compute_cell_adjacency(self, radius=1.e-10):
+        '''
+        Computing cell adjacency informatiom.
+        '''
         cell_adjacency_data = find_cell_adjacency(
             points=self.points_orig, 
             cells=self.cells_orig, 
@@ -262,6 +306,9 @@ class PanelMethod(object):
 
 
     def compute_TE_properties(self, threshold_angle=125, plot=False):
+        '''
+        Computing trailing edge properties to set the Kutta condition
+        '''
         if not self.cell_adjacency_flag:
             self.compute_cell_adjacency()
 
@@ -293,6 +340,9 @@ class PanelMethod(object):
         return self.TE_data
     
     def plot(self, data_to_plot, bounds=None, cmap='jet'):
+        '''
+        Plotting function for scalar field variables.
+        '''
         from VortexAD.utils.plotting.plot_unstructured import plot_pressure_distribution
         plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=self.cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap)
     

@@ -167,6 +167,7 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     # Cp_dynamic = -dmu_dt*2./Q_inf_norm**2
     Cp = Cp_static
     Q_inf = csdl.average(Q_inf_norm, axes=(1,))
+    print(Q_inf.shape)
     if compressibility:
         M_inf = Q_inf/sos
         # sos = 340.3
@@ -176,9 +177,11 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
         # denom = beta + (M_inf**2/(1+beta))*Cp/2
         # Cp = Cp/denom
 
-        denom = 1 + M_inf**2/(1+beta)*Cp/2
+        # denom = 1 + M_inf**2/(1+beta)*Cp/2
         # Cp = Cp/beta/denom
+        if constant_geometry:
 
+            beta  = csdl.expand(beta, (num_nodes, Cp.shape[1]),'i->ia')
         Cp = Cp/beta
 
 
@@ -208,8 +211,8 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     panel_moment_arm = panel_center-ref_pt_exp
     panel_moment = csdl.cross(dF, panel_moment_arm, axis=2)
     moment = csdl.sum(panel_moment, axes=(1,))
-
-    CM = moment/(0.5*rho*ref_area*Q_inf**2*ref_chord)
+    Q_inf_exp = csdl.expand(Q_inf, moment.shape, 'i->ia')
+    CM = moment/(0.5*rho*ref_area*Q_inf_exp**2*ref_chord)
 
     output_dict['CL'] = CL
     output_dict['CDi'] = CDi

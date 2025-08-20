@@ -81,7 +81,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
         vp.show(axs, elevation=0, azimuth=-45, roll=90,
                 axes=False, interactive=interactive)  # render the scene
     else:
-        vp.show(axs, elevation=-45, azimuth=-45, roll=45,
+        show(vps, elevation=-45, azimuth=-45, roll=45,
                 axes=False, interactive=interactive)  # render the scene
     # video.add_frame()  # add individual frame
     # # time.sleep(0.1)

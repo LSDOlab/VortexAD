@@ -1,4 +1,4 @@
-# Advanced examples
+# Panel method
 
 These pages for each category of examples are optional 
 and are required only if you plan to classify your examples
@@ -11,6 +11,6 @@ examples page.
 ```{toctree}
 :maxdepth: 1
 
-../_temp/examples/advanced_examples/ex_3quartic_opt_modopt
-../_temp/examples/advanced_examples/ex_5modularity_NewtonLagrange
+../_temp/examples/panel_method/ex_1_NACA0012
+../_temp/examples/panel_method/ex_2_BWB
 ```

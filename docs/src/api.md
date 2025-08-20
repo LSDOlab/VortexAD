@@ -2,11 +2,11 @@
 
 WORK IN PROGRESS
 
-<!-- This section contains auto-generated API reference for the package.
+This section contains auto-generated API reference for the package.
 
 ```{toctree}
 :maxdepth: 1
 
-autoapi/vector/index
+autoapi/pm_class/index
 autoapi/matrix/index
-``` -->
+```
