@@ -170,9 +170,8 @@ def compute_source_influence_new(A, AM, B, BM, SL, SM, A1, PN, S, l=None, m=None
             RNUM = SM[i]*PN[i]*(B[i]*PA - A[i]*PB) + 1.e-24
             DNOM = PA*PB + PN[i]**2*A[i]*B[i]*SM[i]**2 + 1.e-24
     
-            # atan_term = 2*csdl.arctan(((RNUM**2 + DNOM**2)**0.5 - DNOM) / (RNUM+1.e-24)) # half angle formula
-
-            atan_term = csdl.arctan2(RNUM, DNOM)
+            atan_term = 2*csdl.arctan(((RNUM**2 + DNOM**2)**0.5 - DNOM) / (RNUM+1.e-24)) # half angle formula
+            # atan_term = csdl.arctan2(RNUM, DNOM)
             # ========
 
             GL = (1/(S[i]+1.e-12)) * csdl.log((A[i]+B[i]+(S[i]+1.e-12))/(A[i]+B[i]-(S[i]+1.e-12)))
@@ -198,13 +197,9 @@ def compute_source_influence_new(A, AM, B, BM, SL, SM, A1, PN, S, l=None, m=None
     
             # atan_term = csdl.arctan(RNUM/DNOM) # NOTE: add some numerical softening here
             atan_term = 2*csdl.arctan(((RNUM**2 + DNOM**2)**0.5 - DNOM) / (RNUM+1.e-24)) # half angle formula
+            # atan_term = csdl.arctan2(RNUM, DNOM)
 
             GL = (1/(S[i]+1.e-12)) * csdl.log((A[i]+B[i]+S[i])/(A[i]+B[i]-S[i]))
-
-            print(GL.shape)
-            print(l.shape)
-            print(SM[i].shape)
-            # exit()
             
             side_velocity = GL * (SM[i]*l - SL[i]*m) + atan_term*n # Cjk is the atan term
 

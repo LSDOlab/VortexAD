@@ -832,9 +832,6 @@ def unstructured_AIC_computation(mesh_dict, wake_mesh_dict, num_nodes, num_tot_p
     AIC_mu_adjustment = csdl.Variable(value=np.zeros(AIC_mu_orig.shape))
     # for te_ind in range(len(list(lower_TE_cell_ind))):
     te_ind_list = list(np.arange(len(list(lower_TE_cell_ind)), dtype=int))
-    print(te_ind_list)
-    print(lower_TE_cell_ind)
-    print(upper_TE_cell_ind)
     for te_ind, lower_ind, upper_ind in csdl.frange(vals=(te_ind_list, lower_TE_cell_ind, upper_TE_cell_ind)):
         # lower_ind = lower_TE_cell_ind[te_ind]
         # upper_ind = upper_TE_cell_ind[te_ind]
@@ -1179,13 +1176,12 @@ def unstructured_AIC_computation_UW_looping(mesh_dict, wake_mesh_dict, num_nodes
             a = coll_point_exp_vec - panel_corners_exp_vec[n,:] # Rc - Ri
             P_JK = coll_point_exp_vec - coll_point_j_exp_vec[n,:] # RcJ - RcK
             sum_ind = len(a.shape) - 1
-            print(sum_ind)
 
             A = csdl.norm(a, axes=(sum_ind,)) # norm of distance from CP of i to corners of j
             AL = csdl.sum(a*panel_x_dir_exp_vec[n,:], axes=(sum_ind,))
             AM = csdl.sum(a*panel_y_dir_exp_vec[n,:], axes=(sum_ind,)) # m-direction projection 
             PN = csdl.sum(P_JK*panel_normal_exp_vec[n,:], axes=(sum_ind,)) # normal projection of CP
-            print(A.shape)
+
             B = csdl.Variable(shape=A.shape, value=0.)
             B = B.set(csdl.slice[:,:-1], value=A[:,1:])
             B = B.set(csdl.slice[:,-1], value=A[:,0])
@@ -1234,7 +1230,7 @@ def unstructured_AIC_computation_UW_looping(mesh_dict, wake_mesh_dict, num_nodes
                 S_list, 
                 mode='potential'
             )
-            print('====')
+            # print('====')
             # print(doublet_influence_vec.shape)
 
             # doublet_influence_grid = doublet_influence_vec.reshape((batch_size, num_tot_panels))
@@ -1251,7 +1247,7 @@ def unstructured_AIC_computation_UW_looping(mesh_dict, wake_mesh_dict, num_nodes
     nn_loop_builder.finalize()
     # doublet_influence_vec = csdl.Variable(value=0, shape=(num_nodes, num_interactions))
     # source_influence_vec = csdl.Variable(value=0, shape=(num_nodes, num_interactions))
-    print(doublet_influence_vec.shape)
+    # print(doublet_influence_vec.shape)
     # doublet_influence_batch_grid = doublet_influence_vec.reshape((num_batches, batch_size, num_tot_panels))
     # source_influence_batch_grid = source_influence_vec.reshape((num_batches, batch_size, num_tot_panels))
 
@@ -1415,19 +1411,19 @@ def unstructured_AIC_computation_UW_looping(mesh_dict, wake_mesh_dict, num_nodes
             i = loop_builder.get_loop_indices()
             AIC_KC_lower_nn = -wake_doublet_influence[n,:,i]
             AIC_KC_upper_nn = wake_doublet_influence[n,:,i]
-            print(AIC_KC_lower_nn.shape)
+            # print(AIC_KC_lower_nn.shape)
         AIC_KC_lower = loop_builder.add_stack(AIC_KC_lower_nn)
         AIC_KC_upper = loop_builder.add_stack(AIC_KC_upper_nn)
         loop_builder.finalize()
-        print(AIC_KC_lower.shape)
+        # print(AIC_KC_lower.shape)
         AIC_KC_lower = AIC_KC_lower.T()
         AIC_KC_upper = AIC_KC_upper.T()
-        print(AIC_KC_lower.shape)
+        # print(AIC_KC_lower.shape)
     
     AIC_KC_lower = nn_loop_builder.add_stack(AIC_KC_lower)
     AIC_KC_upper = nn_loop_builder.add_stack(AIC_KC_upper)
     nn_loop_builder.finalize()
-    print(AIC_KC_lower.shape)
+    # print(AIC_KC_lower.shape)
     # exit()
     num_TE_panels = len(te_ind_list)
     # AIC_KC_lower = AIC_KC_lower.reshape((num_nodes, num_TE_panels, num_tot_panels)).T().reshape((num_nodes, num_tot_panels, num_TE_panels))
@@ -1612,7 +1608,7 @@ def compute_aic_mat_vec(coll_point, panel_center, panel_corners, panel_x_dir, pa
     AL = csdl.sum(a*panel_x_dir_exp_vec, axes=(sum_ind,))
     AM = csdl.sum(a*panel_y_dir_exp_vec, axes=(sum_ind,)) # m-direction projection 
     PN = csdl.sum(P_JK*panel_normal_exp_vec, axes=(sum_ind,)) # normal projection of CP
-    print(A.shape)
+    # print(A.shape)
     B = csdl.Variable(shape=A.shape, value=0.)
     B = B.set(csdl.slice[:,:,:-1], value=A[:,:,1:])
     B = B.set(csdl.slice[:,:,-1], value=A[:,:,0])
@@ -1666,8 +1662,8 @@ def compute_aic_mat_vec(coll_point, panel_center, panel_corners, panel_x_dir, pa
     # A = AIC_vec.reshape((num_nodes, num_eval_pts, num_induced_pts))
     # Av = csdl.einsum(A,v,action='ijk,ik->ij')
     A_out = AIC_vec.reshape((num_eval_pts, num_induced_pts))
-    print(v.shape)
-    print(A_out.shape)
+    # print(v.shape)
+    # print(A_out.shape)
 
     # Av = csdl.einsum(A_out,v,action='jk,k->j')
     Av = csdl.matvec(A_out,v)
@@ -1729,7 +1725,7 @@ def compute_phi_T_aic_mat_mat(coll_point, panel_center, panel_corners, panel_x_d
     AL = csdl.sum(a*panel_x_dir_exp_vec, axes=(sum_ind,))
     AM = csdl.sum(a*panel_y_dir_exp_vec, axes=(sum_ind,)) # m-direction projection 
     PN = csdl.sum(P_JK*panel_normal_exp_vec, axes=(sum_ind,)) # normal projection of CP
-    print(A.shape)
+    # print(A.shape)
     B = csdl.Variable(shape=A.shape, value=0.)
     B = B.set(csdl.slice[:,:,:-1], value=A[:,:,1:])
     B = B.set(csdl.slice[:,:,-1], value=A[:,:,0])
@@ -1783,8 +1779,8 @@ def compute_phi_T_aic_mat_mat(coll_point, panel_center, panel_corners, panel_x_d
     # A = AIC_vec.reshape((num_nodes, num_eval_pts, num_induced_pts))
     # Av = csdl.einsum(A,v,action='ijk,ik->ij')
     A_out = AIC_vec.reshape((num_eval_pts, num_induced_pts))
-    print(UT.shape)
-    print(A_out.shape)
+    # print(UT.shape)
+    # print(A_out.shape)
     # exit()
     # UT_A = csdl.einsum(UT, A_out, action='jk,ki->ji')
     UT_A = csdl.matmat(UT, A_out)

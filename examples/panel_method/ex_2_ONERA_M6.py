@@ -1,7 +1,8 @@
-'''NACA0012 rectangular wing: 
+'''ONERA M6 case: 
 
-Example of a rectangular wing with a NACA0012 airfoil. <br>
-Mesh is made using OpenVSP.
+Example of the ONERA M6 case. <br>
+Mesh is made using OpenVSP. <br>
+We utilize additional solver inputs like compressibility corrections.
 
 '''
 
@@ -16,16 +17,17 @@ recorder = csdl.Recorder(inline=False)
 recorder.start()
 
 # set up input dictionary
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl'
-pitch = csdl.Variable(value=np.array([5.]))
+mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine.stl'
+pitch = csdl.Variable(value=np.array([3.06]))
 
 # input dict
 input_dict = {
-    'Mach': 0.25,
+    'Mach': 0.7,
     'alpha': pitch,
-    'Cp cutoff': -5.,
+    'Cp cutoff': -3.,
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
-    'ref_area': 10., 
+    'ref_area': 1.51499, 
+    'compressibility': True
 }
 
 # instantiate PanelMethod class
@@ -40,7 +42,7 @@ pm_outputs = [
 ]
 panel_method.declare_outputs(pm_outputs)
 
-panel_method.setup_grid_properties(threshold_angle=125, plot=True) # optional for debugging
+panel_method.setup_grid_properties(threshold_angle=90, plot=True) # optional for debugging
 
 # run the panel method
 outputs = panel_method.evaluate()

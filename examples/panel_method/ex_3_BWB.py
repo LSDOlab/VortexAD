@@ -1,6 +1,7 @@
 '''Blended wing body across many missions: 
 
 Example of a BWB panel method analysis across many missions. <br>
+Mesh is made using OpenVSP. <br>
 We utilize additional solver inputs like compressibility corrections and reusing the AIC matrix.
 
 <br>
@@ -46,7 +47,7 @@ pm_outputs = [
 ]
 panel_method.declare_outputs(pm_outputs)
 
-panel_method.setup_grid_properties(threshold_angle=125) # optional for debugging
+panel_method.setup_grid_properties(threshold_angle=125, plot=True) # optional for debugging
 
 # run the panel method
 outputs = panel_method.evaluate()

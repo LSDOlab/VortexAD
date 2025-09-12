@@ -24,6 +24,7 @@ default_input_dict = {
 
     # mesh
     'mesh_path': default_mesh_path,
+    'mesh_mode': 'unstructured',
 
     # collocation velocity
     'collocation_velocity': False,
@@ -32,15 +33,8 @@ default_input_dict = {
     'BC': 'Dirichlet',
     'higher_order': False,
 
-    # grid type
-    'mesh_mode': 'unstructured',
-
-    # solver mode
+    # solver and wake mode; steady is fixed, unsteady is prescribed or free
     'solver_mode': 'steady',
-
-    # wake mode
-    # steady is fixed
-    # unsteady is prescribed or free
     'wake_mode': 'fixed',
 
     # partition size for linear system assembly
@@ -50,12 +44,9 @@ default_input_dict = {
     'iterative': False,
     
     # ROM options
-    'ROM': False,
-    # 'ROM-POD': False,
-    # 'ROM-Krylov': False,
+    'ROM': False, # 'ROM-POD or ROM-Krylov
 
-    # reusing AIC (no alpha dependence on wake)
-    # this only applies to fixed wake
+    # reusing AIC (no alpha dependence on wake) --> this only applies to fixed wake
     'reuse_AIC': False,
 
     # others
@@ -66,18 +57,31 @@ default_input_dict = {
 }
 
 output_options_dict = {
+    # forces and coefficients:
     'CL': ['lift coefficient (unitless)', '(num_nodes,)'],
     'L': ['lift force (N)', '(num_nodes,)'],
-
     'CDi': ['induced drag coefficient (unitless)', '(num_nodes,)'],
     'Di': ['induced drag force (N)', '(num_nodes,)'],
-
     'CM': ['moment coefficient (unitless)', '(num_nodes, 3)'],
     'M': ['moment (Nm)', '(num_nodes, 3)'],
 
+    # force and pressure DISTRIBUTIONS
     'Cp': ['pressure coefficient distribution (unitless)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
-
     'panel forces': ['force on each panel (N)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+    'L_panel': ['lift force on each panel (N)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
+    'Di_panel': ['induced drag force on each panel (N)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
+
+    # flow field information
+    'V_mag': ['velocity magnitude at collocation points (m/s)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+
+    # geometry/mesh parameters
+    'panel center': ['physical coordinate of panel centers (m)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+    'panel area': ['area of each panel (m^2)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
+    'panel_x_dir': ['local coordinate system in-plane vector 1 (m)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+    'panel_y_dir': ['local coordinate system in-plane vector 2 (m)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+    'panel_normal': ['panel normal vector (m)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+
+    # others (usually for debugging)
 }
 
 class PanelMethod(object):
@@ -115,6 +119,7 @@ class PanelMethod(object):
         mach    = self.options_dict['Mach']
         sos     = self.options_dict['sos']
         alpha   = self.options_dict['alpha']
+        mesh_mode = self.options_dict['mesh_mode'] # structured or unstructured
         # if alpha is None:
         #     alpha = np.zeros(V_inf.shape)
 
@@ -162,6 +167,7 @@ class PanelMethod(object):
                 V_rot_mat = V_rot_mat.set(csdl.slice[:,0,2], value=-csdl.sin(pitch_rad))
 
                 V_vec_rot = csdl.einsum(V_rot_mat, V_vec, action='ijk,ik->ij')
+
                 grid_velocity = csdl.expand(V_vec_rot, (num_nodes,) + grid_shape, 'ij->iaj')
 
         else:
@@ -206,7 +212,7 @@ class PanelMethod(object):
         #     'coll_point_velocity': None # NOTE: change in the future
         # }
 
-    def setup_grid_properties(self, threshold_angle=125):
+    def setup_grid_properties(self, threshold_angle=125, plot=False):
         '''
         Sets up the mesh, cell adjacency, and trailing edge properties.
 
@@ -216,7 +222,7 @@ class PanelMethod(object):
 
         self.compute_cell_adjacency()
 
-        self.compute_TE_properties()
+        self.compute_TE_properties(threshold_angle=threshold_angle, plot=plot)
 
         self.grid_properties = True
 
@@ -271,6 +277,24 @@ class PanelMethod(object):
             output_dict[output_name] = pm_output_dict[output_name]
 
         return output_dict
+
+    def print_output_options(self, output_names=False):
+        '''
+        Prints the output options with a description + shape
+        If no input is provided, the entire dictionary is printed.
+
+        Inputs:
+        - output_names: list
+        
+        Returns the output options dictionary 
+        '''
+        if not output_names:
+            print(output_options_dict)
+        else:
+            for key in output_names:
+                if key in output_options_dict.keys():
+                    print(output_options_dict[key])
+        return output_options_dict
 
     def import_mesh(self):
         '''

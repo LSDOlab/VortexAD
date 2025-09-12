@@ -12,5 +12,6 @@ examples page.
 :maxdepth: 1
 
 ../_temp/examples/panel_method/ex_1_NACA0012
-../_temp/examples/panel_method/ex_2_BWB
+../_temp/examples/panel_method/ex_2_ONERA_M6
+../_temp/examples/panel_method/ex_3_BWB
 ```

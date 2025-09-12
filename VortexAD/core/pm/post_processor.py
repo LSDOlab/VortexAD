@@ -113,9 +113,6 @@ def post_processor(mesh_dict, mu, sigma, num_nodes, rho=1.225, Cp_cutoff=-100.):
         
         output_dict[surface_name] = surf_dict
 
-        # print(CL.value)
-        # print(CDi.value)
-
     return output_dict
 
 
@@ -132,8 +129,6 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     cell_adjacency = mesh_dict['cell_adjacency']
 
     ql, qm = unstructured_least_squares_velocity(mu, delta_coll_point, cell_adjacency, constant_geometry)
-    # ql = qn*mu
-    # qm = qn*mu
 
     panel_x_dir = mesh_dict['panel_x_dir']
     panel_y_dir = mesh_dict['panel_y_dir']
@@ -167,21 +162,20 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     # Cp_dynamic = -dmu_dt*2./Q_inf_norm**2
     Cp = Cp_static
     Q_inf = csdl.average(Q_inf_norm, axes=(1,))
-    print(Q_inf.shape)
     if compressibility:
+        
         M_inf = Q_inf/sos
+        beta = (1-M_inf**2)**0.5
+        if constant_geometry:
+            beta  = csdl.expand(beta, (num_nodes, Cp.shape[1]),'i->ia')
         # sos = 340.3
         # M_inf = perturbed_vel_mag/sos
         # von Karman and Tsien correction --> better at M=0.7-0.8
-        beta = (1-M_inf**2)**0.5
         # denom = beta + (M_inf**2/(1+beta))*Cp/2
+        # denom = beta + 1/2*Cp*(1-beta)
         # Cp = Cp/denom
 
-        # denom = 1 + M_inf**2/(1+beta)*Cp/2
-        # Cp = Cp/beta/denom
-        if constant_geometry:
-
-            beta  = csdl.expand(beta, (num_nodes, Cp.shape[1]),'i->ia')
+        # PG compressibility correction
         Cp = Cp/beta
 
 

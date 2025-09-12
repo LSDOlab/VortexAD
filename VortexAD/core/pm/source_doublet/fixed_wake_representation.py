@@ -150,10 +150,38 @@ def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., me
         wake_mesh_dict['num_panels'] = (nc_w-1)*num_TE_edges
         wake_mesh_dict['num_points'] = nc_w*ns
 
-        p1 = wake_mesh[:,list(wake_connectivity[:,0]),:]
-        p2 = wake_mesh[:,list(wake_connectivity[:,1]),:]
-        p3 = wake_mesh[:,list(wake_connectivity[:,2]),:]
-        p4 = wake_mesh[:,list(wake_connectivity[:,3]),:]
+        # p1 = wake_mesh[:,list(wake_connectivity[:,0]),:]
+        # p2 = wake_mesh[:,list(wake_connectivity[:,1]),:]
+        # p3 = wake_mesh[:,list(wake_connectivity[:,2]),:]
+        # p4 = wake_mesh[:,list(wake_connectivity[:,3]),:]
+
+        p1_ind = [int(x) for x in list(wake_connectivity[:,0])]
+        p2_ind = [int(x) for x in list(wake_connectivity[:,1])]
+        p3_ind = [int(x) for x in list(wake_connectivity[:,2])]
+        p4_ind = [int(x) for x in list(wake_connectivity[:,3])]
+
+        nn_loop_vals = [np.arange(num_nodes).tolist()]
+        loop_vals = [p1_ind, p2_ind, p3_ind, p4_ind]
+        with csdl.experimental.enter_loop(vals=nn_loop_vals) as nn_loop_builder:
+            n = nn_loop_builder.get_loop_indices()
+            with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+                i,j,k,l = loop_builder.get_loop_indices()
+                p1 = wake_mesh[n,i,:]
+                p2 = wake_mesh[n,j,:]
+                p3 = wake_mesh[n,k,:]
+                p4 = wake_mesh[n,l,:]
+            
+            p1 = loop_builder.add_stack(p1)
+            p2 = loop_builder.add_stack(p2)
+            p3 = loop_builder.add_stack(p3)
+            p4 = loop_builder.add_stack(p4)
+            loop_builder.finalize()
+        
+        p1 = nn_loop_builder.add_stack(p1)
+        p2 = nn_loop_builder.add_stack(p2)
+        p3 = nn_loop_builder.add_stack(p3)
+        p4 = nn_loop_builder.add_stack(p4)
+        nn_loop_builder.finalize()
 
         Rc = (p1+p2+p3+p4)/4.
         wake_mesh_dict['panel_center'] = Rc

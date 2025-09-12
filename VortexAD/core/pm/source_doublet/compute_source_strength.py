@@ -40,8 +40,8 @@ def compute_source_strength(mesh_dict, num_nodes, num_panels, mesh_mode='structu
             sigma = loop_builder.add_stack(sigma) # 
             loop_builder.finalize()
         else: # same shape
-            print(coll_point_velocity.shape)
-            print(panel_normal.shape)
+            # print(coll_point_velocity.shape)
+            # print(panel_normal.shape)
             sigma = -csdl.sum(
                 coll_point_velocity*panel_normal,
                 axes=(2,)
