@@ -53,16 +53,32 @@ VortexAD holds various potential flow methods in different modes, summarized in 
 <!-- Remove/add custom pages from/to toc as per your package's requirement -->
 
 ```{toctree}
+:caption: Overview
 :maxdepth: 1
 :hidden:
 
 src/getting_started
 src/background
+```
+
+```{toctree}
+:caption: Using VortexAD
+:maxdepth: 1
+:hidden:
+
 src/tutorials
-<!-- src/custom_1
-src/custom_2 -->
 src/examples
+src/best_practices
 src/api
 ```
+
+```{toctree}
+:caption: Extras
+:maxdepth: 1
+:hidden:
+
+src/in_development
+```
+
 
 <!-- <img src="/src/images/lsdolab.png" alt="LSDO Lab logo" width="200"/> -->

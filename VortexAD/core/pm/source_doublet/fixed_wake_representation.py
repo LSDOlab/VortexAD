@@ -114,8 +114,16 @@ def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., me
         TE = mesh[:,list(TE_node_indices),:]
         
         if constant_geometry: # propagating back at 0 aoa essentially
-            wake_disp = np.zeros(TE.shape)
-            wake_disp[:,:,0] = 500.
+            TE_vel = nodal_vel[0,list(TE_node_indices),:]
+            # wake_disp = np.zeros(TE.shape)
+            # wake_disp[:,:,0] = 500
+
+            TE_vel_mag = csdl.norm(TE_vel, axes=(1,))
+            TE_vel_sign = TE_vel[:,0]/(TE_vel[:,0]**2)**0.5 # sign in x direction
+            TE_vel_adj = TE_vel_mag*TE_vel_sign
+            wake_disp = csdl.Variable(value=np.zeros(TE.shape))
+            wake_disp = wake_disp.set(csdl.slice[0,:,0], value=100*TE_vel_adj)
+            
             wake_end = TE + wake_disp
         else: # account for aoa in wake
             TE_vel = nodal_vel[:,list(TE_node_indices),:]

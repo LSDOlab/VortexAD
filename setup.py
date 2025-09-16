@@ -50,6 +50,11 @@ setup(
         'setuptools',
         'wheel',
         'twine',
+
+        'meshio==5.3.5',
+        'networkx',
+        'jax',
+        'vedo'
     ],
     classifiers=[
         'Programming Language :: Python',

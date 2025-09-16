@@ -162,9 +162,11 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     # Cp_dynamic = -dmu_dt*2./Q_inf_norm**2
     Cp = Cp_static
     Q_inf = csdl.average(Q_inf_norm, axes=(1,))
+    print(Q_inf.shape)
     if compressibility:
         
         M_inf = Q_inf/sos
+        M_inf = 0.7
         beta = (1-M_inf**2)**0.5
         if constant_geometry:
             beta  = csdl.expand(beta, (num_nodes, Cp.shape[1]),'i->ia')
@@ -182,7 +184,12 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     Cp_cutoff_exp = csdl.expand(Cp_cutoff, Cp.shape)
     Cp = csdl.maximum(Cp, Cp_cutoff_exp, rho=100)
 
-    dF_no_normal = -0.5*rho*Q_inf_norm**2*panel_area*Cp
+    if rho.shape[0] == num_nodes:
+        rho_exp = csdl.expand(rho, panel_area.shape, 'i->ia')
+    else:
+        rho_exp = rho
+
+    dF_no_normal = -0.5*rho_exp*Q_inf_norm**2*panel_area*Cp
     dF = csdl.expand(dF_no_normal, panel_normal.shape, 'jk->jka')*panel_normal
     Fz_panel = csdl.tensordot(dF, z_dir_global, axes=([2],[0]))
     Fx_panel = csdl.tensordot(dF, x_dir_global, axes=([2],[0]))
@@ -203,13 +210,18 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     ref_pt_exp = csdl.expand(ref_point, dF.shape, 'i->abi')
     
     panel_moment_arm = panel_center-ref_pt_exp
-    panel_moment = csdl.cross(dF, panel_moment_arm, axis=2)
+    panel_moment = csdl.cross(panel_moment_arm, dF, axis=2)
     moment = csdl.sum(panel_moment, axes=(1,))
     Q_inf_exp = csdl.expand(Q_inf, moment.shape, 'i->ia')
-    CM = moment/(0.5*rho*ref_area*Q_inf_exp**2*ref_chord)
+    if rho.shape[0] == num_nodes:
+        rho_exp_CM = csdl.expand(rho, (num_nodes, 3), 'i->ia')
+    else:
+        rho_exp_CM = rho
+    CM = moment/(0.5*rho_exp_CM*ref_area*Q_inf_exp**2*ref_chord)
 
     output_dict['CL'] = CL
     output_dict['CDi'] = CDi
+    output_dict['CM'] = CM
     output_dict['Cp'] = Cp
     output_dict['panel_forces'] = dF
     output_dict['M'] = moment

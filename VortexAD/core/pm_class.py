@@ -17,7 +17,7 @@ default_input_dict = {
     'V_inf': None,
     'Mach': None,
     'sos': 340.3, # m/s, 
-    'alpha': np.array([0.]), # user can provide grid of velocities as well
+    'alpha': None, # user can provide grid of velocities as well
     'rho': 1.225, # kg/m^3
     'compressibility': False, # PG correction
     'Cp cutoff': -5., # minimum Cp (numerical reasons)
@@ -67,7 +67,7 @@ output_options_dict = {
 
     # force and pressure DISTRIBUTIONS
     'Cp': ['pressure coefficient distribution (unitless)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
-    'panel forces': ['force on each panel (N)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+    'panel_forces': ['force on each panel (N)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
     'L_panel': ['lift force on each panel (N)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
     'Di_panel': ['induced drag force on each panel (N)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
 
@@ -85,7 +85,7 @@ output_options_dict = {
 }
 
 class PanelMethod(object):
-    def __init__(self, solver_input_dict, threshold_angle=125.):
+    def __init__(self, solver_input_dict, threshold_angle=125., skip_geometry=False):
 
         # load to existing default dictionary
         options_dict = default_input_dict
@@ -93,15 +93,20 @@ class PanelMethod(object):
             options_dict[key] = solver_input_dict[key]
         self.options_dict = options_dict
 
-        self.mesh_filepath = solver_input_dict['mesh_path']
         self.reuse_AIC = self.options_dict['reuse_AIC']
+
+        self.cell_adjacency_flag = False
+        self.TE_properties_flag = False
+        self.flow_properties_flag = False
         
         # self.solver_mode = solver_input_dict['solver_mode'] # steady or unsteady
-
-        self.setup_grid_properties(threshold_angle=125.)
-        self.setup_flow_properties()
+        if not skip_geometry:
+            self.mesh_filepath = solver_input_dict['mesh_path']
+            self.setup_grid_properties(threshold_angle=125.)
+            self.setup_flow_properties()
 
         # self.threshold_theta_default = 125
+
 
     def setup_flow_properties(self):
         '''
@@ -135,18 +140,24 @@ class PanelMethod(object):
                 nn_val = 1
             elif isinstance(val, csdl.Variable):
                 nn_val = val.shape[0]
+            elif val is None:
+                nn_val = 0
             else:
                 nn_val = len(val) # list, set or np.array()
             return nn_val
 
-        nn_V_inf = check_num_nodes(V_inf)
-        nn_V_alpha = check_num_nodes(alpha)
+        if alpha is not None:
+            nn_V_inf = check_num_nodes(V_inf)
+            nn_V_alpha = check_num_nodes(alpha)
 
-        if nn_V_inf != nn_V_alpha:
-            if nn_V_inf != 1 and nn_V_inf != 1:
-                raise ValueError('Error in defining shape of velocity and inflow angle.')
-            
-        num_nodes = np.max([nn_V_alpha, nn_V_inf])
+            if nn_V_inf != nn_V_alpha:
+                if nn_V_inf != 1 and nn_V_inf != 1:
+                    raise ValueError('Error in defining shape of velocity and inflow angle.')
+                
+            num_nodes = np.max([nn_V_alpha, nn_V_inf])
+        else:
+            num_nodes = check_num_nodes(V_inf)
+            nn_V_inf = num_nodes
 
         # converting flow velocity into a grid
 
@@ -211,6 +222,7 @@ class PanelMethod(object):
         #     'nodal_velocity': self.grid_velocity,
         #     'coll_point_velocity': None # NOTE: change in the future
         # }
+        self.flow_properties_flag = True
 
     def setup_grid_properties(self, threshold_angle=125, plot=False):
         '''
@@ -237,11 +249,13 @@ class PanelMethod(object):
         nn_geom = self.num_nodes
         if self.reuse_AIC:
             nn_geom = 1
+        print(self.points.shape)
         self.points = csdl.expand(
             self.points,
             (nn_geom,) + self.points.shape,
             'ij->aij'
         )
+        print(self.points.shape)
 
         self.orig_mesh_dict = {
             'points': self.points,
@@ -263,6 +277,13 @@ class PanelMethod(object):
         The output is a dictionary containing the string names set
         in self.declare_outputs()
         '''
+        if not self.cell_adjacency_flag:
+            raise ValueError('No cell adjacency data. Please check mesh path or use self.insert_grid_data.')
+        if not self.TE_properties_flag:
+            raise ValueError('No TE properties data. Please check mesh path or use self.insert_grid_data.')
+
+        if not self.flow_properties_flag:
+            self.setup_flow_properties()
 
         self.__assemble_input_dict__()
 
@@ -270,7 +291,6 @@ class PanelMethod(object):
             self.orig_mesh_dict,
             self.options_dict,
         )
-
 
         output_dict = {}
         for output_name in self.output_name_list:
@@ -309,6 +329,9 @@ class PanelMethod(object):
         cells_dict = mesh.cells_dict
         self.cells_orig = cells_dict['triangle']
         # _orig bc we update these in the cell_adjacency function
+    
+    def overwrite_mesh(self, mesh):
+        self.points = mesh
 
     def compute_cell_adjacency(self, radius=1.e-10):
         '''
@@ -362,6 +385,36 @@ class PanelMethod(object):
             plot_pressure_distribution(self.points_orig, TE_coloring, connectivity=self.cells, interactive=True, top_view=False, cmap='rainbow')
 
         return self.TE_data
+
+    # these functions are when we want to use the functions externally
+    # this helps when doing optimization or using FFD to move a mesh
+    def insert_grid_data(self, mesh, cell_adjacency_data, TE_properties):
+        self.insert_mesh(mesh)
+        self.insert_cell_adjacency(cell_adjacency_data)
+        self.insert_TE_properties(TE_properties)
+
+    def insert_mesh(self, mesh):
+        self.points = mesh
+        # print(self.points.shape)
+        # exit()
+
+    def insert_cell_adjacency(self, cell_adjacency_data):
+        # self.points = cell_adjacency_data[0]
+        self.cells = cell_adjacency_data[1]
+        self.cell_adjacency = cell_adjacency_data[2]
+        self.edges2cells = cell_adjacency_data[3]
+        self.points2cells = cell_adjacency_data[4]
+
+        self.cell_adjacency_flag = True
+
+    def insert_TE_properties(self, TE_properties):
+        self.upper_TE_cells = TE_properties[0]
+        self.lower_TE_cells = TE_properties[1]
+        self.TE_edges = TE_properties[2]
+        self.TE_node_indices = TE_properties[3]
+
+        self.TE_properties_flag = True
+
     
     def plot(self, data_to_plot, bounds=None, cmap='jet'):
         '''

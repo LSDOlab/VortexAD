@@ -2,7 +2,17 @@
 title: Background
 ---
 
-WIP
+This page provides relevant theoretical knowledge for the solvers within this package.
+
+
+```{toctree}
+:maxdepth: 1
+<!-- :hidden: -->
+
+background/potential_flow
+background/panel_method
+background/vlm
+```
 
 <!-- This page is intended to provide the reader with any theoretical
 knowledge or other concepts that form the basis of your package.

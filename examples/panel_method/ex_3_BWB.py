@@ -43,7 +43,9 @@ panel_method = PanelMethod(
 pm_outputs = [
     'CL',
     'CDi',
-    'Cp'
+    'Cp',
+    'L',
+    'Di'
 ]
 panel_method.declare_outputs(pm_outputs)
 
@@ -56,10 +58,12 @@ outputs = panel_method.evaluate()
 CL = outputs['CL']
 CDi = outputs['CDi']
 CP = outputs['Cp']
+L = outputs['L']
+Di = outputs['Di']
 
 # csdl-jax stuff
 inputs = [pitch]
-outputs = [CL, CDi, CP]
+outputs = [CL, CDi, CP, L, Di]
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -73,7 +77,12 @@ CL_val = sim[CL]
 CDi_val = sim[CDi]
 CP_val = sim[CP]
 
+L_val = sim[L]
+Di_val = sim[Di]
+
 print('CL:', CL_val)
 print('CDi:', CDi_val)
+print('L:', L_val)
+print('Di:', Di_val)
 
 panel_method.plot(CP_val[0,:], bounds=[-3,1])

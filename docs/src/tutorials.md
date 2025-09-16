@@ -15,13 +15,13 @@ from running the script for better understanding for the users.
 If no classification of tutorials is required, just remove the subpages for tutorials
 and add the tutorial files directly into the toctree of this main tutorials page. -->
 
-<!-- ```{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: List of tutorials
 :titlesonly:
 :numbered: 1
 :includehidden:
 
-tutorials/basic
-tutorials/advanced
-``` -->
+tutorials/panel_method
+tutorials/vlm
+```

@@ -184,10 +184,10 @@ def compute_doublet_influence_new(A, AM, B, BM, SL, SM, A1, PN, mode='potential'
             # asdf = 2*csdl.arctan(((RNUM**2 + DNOM**2+1.e-12)**0.5 - DNOM) / (RNUM+1.e-24)) # half angle formula
             # asdf = 2*csdl.arctan((RNUM/((RNUM**2+DNOM**2)**0.5+DNOM)))]
 
-            atan2_num = (RNUM**2 + DNOM**2)**0.5 - DNOM
-            atan2_den = RNUM+1.e-24
-            asdf = 2*csdl.arctan(atan2_num/atan2_den)
-            # asdf = csdl.arctan2(RNUM,DNOM)
+            # atan2_num = (RNUM**2 + DNOM**2)**0.5 - DNOM
+            # atan2_den = RNUM+1.e-24
+            # asdf = 2*csdl.arctan(atan2_num/atan2_den)
+            asdf = csdl.arctan2(RNUM,DNOM)
             # ========
 
             panel_segment_potential.append(asdf)

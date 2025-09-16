@@ -1,6 +1,5 @@
 # Getting started
-This page provides instructions for installing your package 
-and running a minimal example.
+This page provides instructions for installing VortexAD. 
 
 ## Installation
 
@@ -14,8 +13,8 @@ If you want users to install a specific branch, run
 $ pip install git+https://github.com/LSDOlab/VortexAD.git@branch
 ```
 
-**Enabled by**: Copying the `setup.py` file, changing your repository name and version, 
-and adding all your dependencies into the list `install_requires`.
+<!-- **Enabled by**: Copying the `setup.py` file, changing your repository name and version,  -->
+<!-- and adding all your dependencies into the list `install_requires`. -->
 
 ### Installation instructions for developers
 To install `VortexAD`, first clone the repository and install using pip.
@@ -24,7 +23,24 @@ On the terminal or command line, run
 $ git clone https://github.com/LSDOlab/VortexAD.git
 $ pip install -e ./VortexAD
 ```
-**Enabled by**: Copying the setup.py file, and changing your repository name and version.
+
+## Dependencies
+VortexAD relies on a set of existing packages for a variety of things.
+
+# Standalone
+
+Packages needed:
+- CSDL
+- meshio
+- Ozone (unsteady) --> needed later
+
+# Optimization
+To use VortexAD for optimization, a set of additional packages are required.
+
+- lsdo_geo
+- lsdo_function_spaces
+
+<!-- **Enabled by**: Copying the setup.py file, and changing your repository name and version. -->
 
 <!-- ## Setting up Documentation
 

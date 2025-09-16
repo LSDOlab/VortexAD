@@ -26,5 +26,7 @@ def steady_panel_solver(orig_mesh_dict, solver_options_dict):
         outputs = source_doublet_solver(orig_mesh_dict, solver_options_dict)
         output_dict = outputs[0]
         mesh_dict = outputs[1]
+        mu = outputs[2]
+        sigma = outputs[3]
 
         return output_dict, mesh_dict

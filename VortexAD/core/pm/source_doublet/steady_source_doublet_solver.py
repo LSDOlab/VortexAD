@@ -23,6 +23,11 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
     moment_ref      = solver_options_dict['moment_reference']
     drag_type       = solver_options_dict['drag_type']
 
+    if isinstance(rho, float):
+        rho = csdl.Variable(value=np.array([rho]))
+    elif isinstance(rho, list):
+        rho = csdl.Variable(value=np.array(rho))
+
     if mesh_mode == 'structured':
         surface_0 = list(orig_mesh_dict.keys())[0]
         num_nodes = orig_mesh_dict[surface_0]['nodal_velocity'].shape[0]
@@ -60,7 +65,7 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
         output_dict = unstructured_post_processor(
             mesh_dict, mu, sigma, num_nodes, compressibility, 
             rho, Cp_cutoff, reuse_AIC, ref_point=moment_ref,
-            ref_area=ref_area, ref_chord=ref_chord
+            ref_area=ref_area, ref_chord=ref_chord, sos=sos
         )
 
     output_dict['wake_dict'] = wake_dict
