@@ -26,11 +26,11 @@ Note that template users need to edit the README badge definitions for their res
 # Installation
 
 ## Installing CSDL
-VortexAD requires a specific branch of CSDL, which can be found [here](https://github.com/LSDOlab/CSDL_alpha/tree/dev_custom) and installed using `git clone`. 
-<!-- It can also be installed by running the command -->
-<!-- ```sh -->
-<!-- pip install git+https://github.com/LSDOlab/CSDL_alpha/tree/dev_custom -->
-<!-- ``` -->
+<!-- VortexAD requires a specific branch of CSDL called `dev_custom`, which can be found [here](https://github.com/LSDOlab/CSDL_alpha/tree/dev_custom) and installed using `git clone`. 
+It can also be installed by running the command
+```sh
+pip install git+https://github.com/LSDOlab/csdl_alpha.git@dev_custom
+``` -->
 
 
 ## Installation instructions for users

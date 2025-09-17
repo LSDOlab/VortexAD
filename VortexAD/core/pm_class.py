@@ -14,7 +14,7 @@ default_mesh_path = current_directory + '/geometry/sample_meshes/naca0012_LE_TE_
 
 default_input_dict = {
     # flow properties
-    'V_inf': None,
+    'V_inf': 10., # m/s
     'Mach': None,
     'sos': 340.3, # m/s, 
     'alpha': None, # user can provide grid of velocities as well
@@ -59,10 +59,10 @@ default_input_dict = {
 output_options_dict = {
     # forces and coefficients:
     'CL': ['lift coefficient (unitless)', '(num_nodes,)'],
-    'L': ['lift force (N)', '(num_nodes,)'],
     'CDi': ['induced drag coefficient (unitless)', '(num_nodes,)'],
-    'Di': ['induced drag force (N)', '(num_nodes,)'],
     'CM': ['moment coefficient (unitless)', '(num_nodes, 3)'],
+    'L': ['lift force (N)', '(num_nodes,)'],
+    'Di': ['induced drag force (N)', '(num_nodes,)'],
     'M': ['moment (Nm)', '(num_nodes, 3)'],
 
     # force and pressure DISTRIBUTIONS
@@ -72,7 +72,7 @@ output_options_dict = {
     'Di_panel': ['induced drag force on each panel (N)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
 
     # flow field information
-    'V_mag': ['velocity magnitude at collocation points (m/s)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],
+    'V_mag': ['velocity magnitude at collocation points (m/s)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
 
     # geometry/mesh parameters
     'panel center': ['physical coordinate of panel centers (m)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],

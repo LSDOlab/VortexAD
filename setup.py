@@ -51,10 +51,12 @@ setup(
         'wheel',
         'twine',
 
-        'meshio==5.3.5',
-        'networkx',
+        # specific installations needed for VortexAD
+        'csdl_alpha @ git+https://github.com/LSDOlab/csdl_alpha.git@dev_custom',
         'jax',
-        'vedo'
+        'meshio==5.3.5',
+        'vedo',
+        'networkx',
     ],
     classifiers=[
         'Programming Language :: Python',

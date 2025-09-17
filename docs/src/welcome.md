@@ -66,6 +66,9 @@ src/background
 :maxdepth: 1
 :hidden:
 
+src/panel_method_use
+src/vlm_use
+
 src/tutorials
 src/examples
 src/best_practices

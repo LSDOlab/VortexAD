@@ -25,20 +25,45 @@ $ pip install -e ./VortexAD
 ```
 
 ## Dependencies
-VortexAD relies on a set of existing packages for a variety of things.
+<!-- `VortexAD` relies on a set of existing packages for a variety of things. Many of these packages are installed automatically to facilitate the installation process.
 
-# Standalone
+`VortexAD` is built using `CSDL`, a computational framework designed to facilitate the development of MDO models. `CSDL` provides the automatic adjoint-based differentiation capabilities. There are two ways to install `CSDL`. Users can install by running the command
+```sh
+pip install git+https://github.com/LSDOlab/csdl_alpha.git@dev_custom
+```
+in the terminal window. The `@dev_custom` refers to a *specific* branch of `CSDL`.
 
-Packages needed:
-- CSDL
-- meshio
-- Ozone (unsteady) --> needed later
+Developers can also `git clone` the repository by cloning and then installing using pip. On the terminal or command line, run
+```sh
+$ git clone https://github.com/LSDOlab/csdl_alpha.git
+$ cd csdl_alpha
+$ git checkout dev_custom
+$ pip install -e .
+```
 
-# Optimization
+```{warning}
+This branch of CSDL requires `networkx`, which has yet to be added as a dependency. It can be installed by running `pip install networkx` in your terminal or command line.
+``` -->
+
+`VortexAD` automatically installs other software tools to aid with plotting and reading complex grid & mesh files, described below.
+
+| Package | Description |
+|:---|:---|
+| [CSDL](https://csdl-alpha.readthedocs.io/en/latest/index.html) | Base language to build MDO models |
+| [JAX](https://docs.jax.dev/en/latest/) | Framework for high-performance numerical computing |
+| [meshio](https://pypi.org/project/meshio/) | I/O for mesh and grid files |
+| [vedo](https://vedo.embl.es/) | Plotting framework |
+<!-- | [Ozone](https://github.com/LSDOlab/ozone) | ODE software (future ) | -->
+
+```{warning}
+`VortexAD` automatically installs the `dev_custom` branch of `csdl`, as some of the `csdl` developments have not been pushed to the `main` branch. This branch of CSDL also requires `networkx`, which is automatically installed as well.
+```
+
+<!-- ### Optimization
 To use VortexAD for optimization, a set of additional packages are required.
 
 - lsdo_geo
-- lsdo_function_spaces
+- lsdo_function_spaces -->
 
 <!-- **Enabled by**: Copying the setup.py file, and changing your repository name and version. -->
 
