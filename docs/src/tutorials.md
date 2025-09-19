@@ -1,6 +1,6 @@
 # Tutorials
 
-WORK IN PROGRESS
+This page includes a set of recommended tutorials to correctly and efficiently use the available solvers in VortexAD. 
 
 <!-- These tutorials are generated from Jupyter notebooks (.ipynb) and
 walks the reader through Python scripts providing detailed
@@ -17,7 +17,7 @@ and add the tutorial files directly into the toctree of this main tutorials page
 
 ```{toctree}
 :maxdepth: 2
-:caption: List of tutorials
+<!-- :caption: List of tutorials -->
 :titlesonly:
 :numbered: 1
 :includehidden:

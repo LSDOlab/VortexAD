@@ -8,5 +8,5 @@ This section contains auto-generated API reference for the package.
 :maxdepth: 1
 
 autoapi/pm_class/index
-autoapi/matrix/index
+<!-- autoapi/matrix/index -->
 ```
