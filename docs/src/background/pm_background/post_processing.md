@@ -32,7 +32,9 @@ from the definition of potential flow. This relationship holds true regardless o
 
 $$
 V_{ind} = \nabla \phi_{ind} = \begin{pmatrix} \nabla \mu \\ \sigma \end{pmatrix} = \begin{pmatrix} \frac{\partial \mu}{\partial l} \\ \frac{\partial \mu}{\partial m} \\ \sigma \end{pmatrix}
-$$ # NOTE: maybe need to change the nabla terms for phi and mu 
+$$ 
+
+<!-- # NOTE: maybe need to change the nabla terms for phi and mu  -->
 
 where the doublet gradient term $\nabla \mu$ represents a surface gradient. We are interested in computing this term for each **panel**.<!-- We know the sources $\sigma$ represent the normal component of the velocity jump across the boundary; therefore, we can deduce that the doublet gradient contains only terms in the tangent plane.  -->
 We use numerical differentiation to estimate $\nabla \mu$ at panel $i$. Using a first-order Taylor series expansion, we can approximate the neighboring panel doublet strength $\mu_j$ using $\mu_i$ as
@@ -49,9 +51,9 @@ represents the vector between the centroids of panel $i$ and $j$. We can assembl
 
 $$
 
-\begin{split}
+% \begin{split}
 \begin{pmatrix} | & | \\ \delta l & \delta m \\ | & |\end{pmatrix} \begin{pmatrix} \frac{\partial \mu}{\partial l} \\ \frac{\partial \mu}{\partial m} \end{pmatrix} = \begin{pmatrix}| \\ \delta \mu\\ | \end{pmatrix}
-\end{split}
+% \end{split}
 $$
 
 which can be written in shorthand as $Av = b$. The rows in the linear system represent the number of neighboring panels; recall that the VortexAD panel code supports only closed, triangulated grids, so the linear system for each panel will have three rows. The delta vectors for positions and $\mu$ are defined as
