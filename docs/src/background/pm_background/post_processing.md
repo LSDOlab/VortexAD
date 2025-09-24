@@ -42,18 +42,19 @@ We use numerical differentiation to estimate $\nabla \mu$ at panel $i$. Using a 
 $$
 \mu_{j} = \mu_i + (\delta p)^T \nabla \mu_i
 $$
+
 where
-$$
-\delta p = p_{j}-p_{i} = \begin{pmatrix} (p_j - p_i)_l \\ (p_j-p_i)_m \end{pmatrix} = \begin{pmatrix} \delta l_j \\ \delta m_j \end{pmatrix}
 
 $$
+\delta p = p_{j}-p_{i} = \begin{pmatrix} (p_j - p_i)_l \\ (p_j-p_i)_m \end{pmatrix} = \begin{pmatrix} \delta l_j \\ \delta m_j \end{pmatrix}
+$$
+
 represents the vector between the centroids of panel $i$ and $j$. We can assemble a series of these approximations for $j \in [1,n]$, where $n$ represents the number of panels adjacent to panel $i$. This is used to formulate an overdetermined linear system:
 
 $$
-
-% \begin{split}
+\begin{split}
 \begin{pmatrix} | & | \\ \delta l & \delta m \\ | & |\end{pmatrix} \begin{pmatrix} \frac{\partial \mu}{\partial l} \\ \frac{\partial \mu}{\partial m} \end{pmatrix} = \begin{pmatrix}| \\ \delta \mu\\ | \end{pmatrix}
-% \end{split}
+\end{split}
 $$
 
 which can be written in shorthand as $Av = b$. The rows in the linear system represent the number of neighboring panels; recall that the VortexAD panel code supports only closed, triangulated grids, so the linear system for each panel will have three rows. The delta vectors for positions and $\mu$ are defined as
