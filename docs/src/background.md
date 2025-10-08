@@ -11,7 +11,7 @@ This page provides relevant theoretical knowledge for the solvers within this pa
 
 background/potential_flow
 background/panel_method
-background/vlm
+<!-- background/vlm -->
 ```
 
 <!-- This page is intended to provide the reader with any theoretical

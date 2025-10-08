@@ -3,9 +3,12 @@ from pathlib import Path
 
 # solver classes
 from VortexAD.core.pm_class import PanelMethod
+from VortexAD.core.pm_class_mixed import PanelMethodMixed
 from VortexAD.core.vlm_class import VLM
 
 # panel method mesh/geometry utility functions
+# from VortexAD.utils.unstructured_grids.cell_adjacency_old import find_cell_adjacency_old
+# from VortexAD.utils.unstructured_grids.TE_detection_old import TE_detection_old
 from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency
 from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
 

@@ -1,30 +1,17 @@
 import numpy as np
 
-def TE_detection(points, cells, edges2cells, threshold_theta=75, use_caddee=False):
+def TE_detection_old(points, cells, edges2cells, threshold_theta=75, use_caddee=False):
 
     # getting edge vectors of panel
     # points are ordered s.t. outward normal
+    p1_ind = cells[:,0]
+    p2_ind = cells[:,1]
+    p3_ind = cells[:,2]
+    v1 = points[p2_ind,:] - points[p1_ind,:]
+    v2 = points[p3_ind,:] - points[p2_ind,:]
+    cell_normal = np.cross(v1, v2, axis=1)
+    cell_normal_norm = np.linalg.norm(cell_normal, axis=1) # cell normal norm
 
-    cell_types = cells.keys()
-    num_cells = np.sum([len(cells[cell_type]) for cell_type in cell_types])
-    combined_cells = []
-    for cell_type in cell_types:
-        combined_cells += cells[cell_type].tolist()
-
-    cell_normal = np.zeros((num_cells,3))
-    cell_normal_norm = np.zeros((num_cells,))
-    for i, cell_pts in enumerate(combined_cells):
-        if len(cell_pts) == 3:
-            v1 = points[cell_pts[1],:] - points[cell_pts[0],:]
-            v2 = points[cell_pts[2],:] - points[cell_pts[1],:]
-        elif len(cell_pts) == 4:
-            v1 = points[cell_pts[2],:] - points[cell_pts[0],:]
-            v2 = points[cell_pts[3],:] - points[cell_pts[1],:]
-        cell_normal_iter = np.cross(v1, v2)
-        cell_normal_norm_iter = np.linalg.norm(cell_normal_iter)
-        cell_normal[i,:] = cell_normal_iter
-        cell_normal_norm[i] = cell_normal_norm_iter
-            
     # cosine of TE threshold angle
     theta_t = np.deg2rad(threshold_theta)
     threshold_cos = np.cos(theta_t)
@@ -106,7 +93,7 @@ def TE_detection(points, cells, edges2cells, threshold_theta=75, use_caddee=Fals
         #   - we need to make sure that the node indices in the edge 
         #   preserve the proper ordering for the correct normal vector
 
-    node_TE_indices = np.array(list(set(node_TE_indices)))
+    node_TE_indices = list(set(node_TE_indices))
 
     return upper_TE_cells, lower_TE_cells, TE_edges, node_TE_indices
 

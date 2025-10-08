@@ -3,7 +3,7 @@ import csdl_alpha as csdl
 
 import time
 
-from VortexAD.core.pm.source_doublet.least_squares_velocity import least_squares_velocity, unstructured_least_squares_velocity
+from VortexAD.core.pm.source_doublet.least_squares_velocity import least_squares_velocity, unstructured_least_squares_velocity_mixed
 
 def post_processor(mesh_dict, mu, sigma, num_nodes, rho=1.225, Cp_cutoff=-100.):
     surface_names = list(mesh_dict.keys())
@@ -125,10 +125,29 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     output_dict = {}
 
     qn = sigma
-    delta_coll_point = mesh_dict['delta_coll_point']
-    cell_adjacency = mesh_dict['cell_adjacency']
+    
+    # looping over cell types to compute induced velocities
+    cells = mesh_dict['cell_point_indices']
+    cell_types = list(cells.keys())
+    cell_adjacency_types = mesh_dict['cell_adjacency']
+    num_cells_per_type = [len(cell_adjacency_types[cell_type]) for cell_type in cell_types]
+    num_cells = sum(num_cells_per_type)
 
-    ql, qm = unstructured_least_squares_velocity(mu, delta_coll_point, cell_adjacency, constant_geometry)
+    ql = csdl.Variable(value=np.zeros(qn.shape))
+    qm = csdl.Variable(value=np.zeros(qn.shape))
+    start, stop = 0, 0
+    for i, cell_type in enumerate(cell_types):
+        stop += num_cells_per_type[i]
+        
+        delta_coll_point = mesh_dict['delta_coll_point_' + cell_type]
+        cell_adjacency = np.array(cell_adjacency_types[cell_type])
+        ql_iter, qm_iter = unstructured_least_squares_velocity_mixed(mu, delta_coll_point, cell_adjacency, start, constant_geometry)
+        # NOTE: we add "start" to this to signify the shift in panel indices with different types
+        # this is only needed with mixed grids
+        ql = ql.set(csdl.slice[:,start:stop], ql_iter)
+        qm = qm.set(csdl.slice[:,start:stop], qm_iter)
+
+        start += num_cells_per_type[i]
 
     panel_x_dir = mesh_dict['panel_x_dir']
     panel_y_dir = mesh_dict['panel_y_dir']

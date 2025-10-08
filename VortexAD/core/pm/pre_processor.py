@@ -2,9 +2,7 @@ import numpy as np
 import csdl_alpha as csdl
 
 def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
-    '''
-    NOTE: ADD UNSTRUCTURED STUFF IN HERE
-    '''
+    
     if mode == 'structured':
         surface_names = list(mesh_dict.keys())
         for i, surf_name in enumerate(surface_names):

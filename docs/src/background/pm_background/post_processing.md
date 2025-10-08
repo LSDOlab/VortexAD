@@ -76,7 +76,7 @@ $$
 A^TAv = A^Tb \hspace{2mm} \text{or} \hspace{2mm} Cv = d
 $$
 
-where our new system of equations is represented by a 2x2 linear system. Rather than assembling the entire matrix $A$ and doing a series of expensive matrix-matrix and matrix=vector products, we can assemble the new linear system directly by computing elements of $C$ and $d$; each term in the linear system is shown below based on the delta vectors of $l, m, \mu$.
+where our new system of equations is represented by a 2x2 linear system. Rather than assembling the entire matrix $A$ and doing a series of expensive matrix-matrix and matrix-vector products, we can assemble the new linear system directly by computing elements of $C$ and $d$; each term in the linear system is shown below based on the delta vectors of $l, m, \mu$.
 
 $$
 % \begin{pmatrix} \delta l^2 & \delta l\delta m \\ \delta l\delta m &  \delta m^2 \end{pmatrix}

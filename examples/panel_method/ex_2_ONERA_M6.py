@@ -18,6 +18,7 @@ recorder.start()
 
 # set up input dictionary
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine.stl'
+# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_mix.msh'
 pitch = csdl.Variable(value=np.array([3.06]))
 
 # input dict
@@ -32,7 +33,8 @@ input_dict = {
 
 # instantiate PanelMethod class
 panel_method = PanelMethod(
-    input_dict
+    input_dict,
+    # skip_geometry=True
 )
 # declare outputs of interest
 pm_outputs = [
@@ -41,9 +43,9 @@ pm_outputs = [
     'Cp'
 ]
 panel_method.declare_outputs(pm_outputs)
-
+# panel_method.mesh_filepath = mesh_file_path
 panel_method.setup_grid_properties(threshold_angle=90, plot=True) # optional for debugging
-
+# exit()
 # run the panel method
 outputs = panel_method.evaluate()
 
