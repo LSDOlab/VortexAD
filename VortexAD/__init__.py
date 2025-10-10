@@ -2,8 +2,8 @@ __version__ = '0.0.0'
 from pathlib import Path
 
 # solver classes
+from VortexAD.core.pm_class_tri import PanelMethodTri
 from VortexAD.core.pm_class import PanelMethod
-from VortexAD.core.pm_class_mixed import PanelMethodMixed
 from VortexAD.core.vlm_class import VLM
 
 # panel method mesh/geometry utility functions

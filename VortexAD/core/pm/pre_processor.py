@@ -120,236 +120,316 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
             
     elif mode == 'unstructured':
         mesh = mesh_dict['points'] # num_nodes, num_panels, 3
-        cell_point_indices = mesh_dict['cell_point_indices']
-        cell_adjacency = mesh_dict['cell_adjacency']
+        nodal_vel = mesh_dict['nodal_velocity']
+        cells = mesh_dict['cell_point_indices']
+        cell_types = list(cells.keys())
+        cell_adjacency_types = mesh_dict['cell_adjacency']
+
         mesh_shape = mesh.shape
         num_nodes = mesh_shape[0]
         if constant_geometry:
             num_nodes = 1
         else:
             num_nodes=mesh.shape[0]
-        num_panels = cell_point_indices.shape[0]
 
-        # ==== WITH DUPLICATE INDICES ====
-        # p1 = mesh[:,list(cell_point_indices[:,0]),:]
-        # p2 = mesh[:,list(cell_point_indices[:,1]),:]
-        # p3 = mesh[:,list(cell_point_indices[:,2]),:]
+        '''
+        with mixed elements:
+        - assemble the variables for each element type separately
+        - concatenate the cell_type to the key name
 
-        # ==== USING CSDL FRANGE ====
-        panel_indices_np_int = list(np.arange(cell_point_indices.shape[0]))
-        p1_indices_np_int = list(cell_point_indices[:,0])
-        p2_indices_np_int = list(cell_point_indices[:,1])
-        p3_indices_np_int = list(cell_point_indices[:,2])
+        once each has been set up, we need to also combine the variables for:
+        - normal vectors
+        - panel local in-plane vectors
+        - panel centers
+        - collocation velocity
+        - panel area
+        '''
 
-        panel_indices = [int(x) for x in panel_indices_np_int]
-        p1_indices = [int(x) for x in p1_indices_np_int]
-        p2_indices = [int(x) for x in p2_indices_np_int]
-        p3_indices = [int(x) for x in p3_indices_np_int]
+        for i, cell_type in enumerate(cell_types):
+            cell_point_indices = np.array(cells[cell_type])
+            if cell_type == 'triangle':
+                num_corners = 3
+            elif cell_type == 'quad':
+                num_corners = 4
 
-        # p1 = csdl.Variable(shape=(num_nodes, cell_point_indices.shape[0], 3), value=0.)
-        # p2 = csdl.Variable(shape=(num_nodes, cell_point_indices.shape[0], 3), value=0.)
-        # p3 = csdl.Variable(shape=(num_nodes, cell_point_indices.shape[0], 3), value=0.)
+            panel_indices_np_int = list(np.arange(len(cell_point_indices)))
+            p1_indices_np_int = list(cell_point_indices[:,0])
+            p2_indices_np_int = list(cell_point_indices[:,1])
+            p3_indices_np_int = list(cell_point_indices[:,2])
 
-        # for cell_ind, ind1, ind2, ind3 in csdl.frange(vals=(panel_indices, p1_indices, p2_indices, p3_indices)):
-        #     p1 = p1.set(csdl.slice[:,cell_ind,:], value=mesh[:,ind1,:])
-        #     p2 = p2.set(csdl.slice[:,cell_ind,:], value=mesh[:,ind2,:])
-        #     p3 = p3.set(csdl.slice[:,cell_ind,:], value=mesh[:,ind3,:])
+            panel_indices = [int(x) for x in panel_indices_np_int]
+            p1_indices = [int(x) for x in p1_indices_np_int]
+            p2_indices = [int(x) for x in p2_indices_np_int]
+            p3_indices = [int(x) for x in p3_indices_np_int]
+            
+            nn_loop_vals = [np.arange(num_nodes).tolist()]
+            loop_vals = [p1_indices, p2_indices, p3_indices]
+            if cell_type == 'quad':
+                p4_indices_np_int = list(cell_point_indices[:,3])
+                p4_indices = [int(x) for x in p4_indices_np_int]
+                loop_vals.append(p4_indices)
+            
+            with csdl.experimental.enter_loop(vals=nn_loop_vals) as nn_loop_builder:
+                n = nn_loop_builder.get_loop_indices()
+                with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+                    loop_ind_var = loop_builder.get_loop_indices()
+                    p_list_inner = [mesh[n, ind, :] for ind in loop_ind_var]
+                
+                p_list_outer = [loop_builder.add_stack(p) for p in p_list_inner]
+                loop_builder.finalize()
 
-        # ==== USING STACK VIA LOOP BUILDER ====
-        nn_loop_vals = [np.arange(num_nodes).tolist()]
-        loop_vals = [p1_indices, p2_indices, p3_indices]
-        with csdl.experimental.enter_loop(vals=nn_loop_vals) as nn_loop_builder:
-            n = nn_loop_builder.get_loop_indices()
-            with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
-                j,k,l = loop_builder.get_loop_indices()
-                p1 = mesh[n,j,:]
-                p2 = mesh[n,k,:]
-                p3 = mesh[n,l,:]
+            p_list = [nn_loop_builder.add_stack(p) for p in p_list_outer]
+            nn_loop_builder.finalize()
 
-            p1 = loop_builder.add_stack(p1)
-            p2 = loop_builder.add_stack(p2)
-            p3 = loop_builder.add_stack(p3)
-            loop_builder.finalize()
+            panel_center = sum(p_list) / num_corners
+            mesh_dict['panel_center_' + cell_type] = panel_center
 
-        p1 = nn_loop_builder.add_stack(p1)
-        p2 = nn_loop_builder.add_stack(p2)
-        p3 = nn_loop_builder.add_stack(p3)
-        nn_loop_builder.finalize()
+            panel_corners = csdl.Variable(shape=panel_center.shape[:-1] + (num_corners,3), value=0.) # (3,3) is 3 points, 3 dimensions
+            for j in range(num_corners):
+                panel_corners = panel_corners.set(csdl.slice[:,:,j,:], value=p_list[j])
+            mesh_dict['panel_corners_' + cell_type] = panel_corners
 
-        # p1 = p1.reshape((num_nodes, num_panels, 3))
-        # p2 = p2.reshape((num_nodes, num_panels, 3))
-        # p3 = p3.reshape((num_nodes, num_panels, 3))
-        
-        panel_center = (p1+p2+p3)/3.
+            if cell_type == 'triangle':
+                m12 = (p_list[0]+p_list[1])/2.
+                m23 = (p_list[1]+p_list[2])/2.
+                m31 = (p_list[2]+p_list[0])/2.
+                l_vec = m12 - panel_center
+                l_vec = l_vec / csdl.expand(csdl.norm(l_vec, axes=(2,)), l_vec.shape, 'jk->jka')
+                normal_vec = csdl.cross(l_vec, m23-panel_center, axis=2)
+                normal_vec_norm = csdl.norm(normal_vec, axes=(2,))
+                normal_vec = normal_vec / csdl.expand(normal_vec_norm, l_vec.shape, 'jk->jka')
+                m_vec = csdl.cross(normal_vec, l_vec, axis=2)
+
+                AB = p_list[1] - p_list[0]
+                AC = p_list[2] - p_list[0]
+                panel_area = 0.5 * csdl.norm(
+                    csdl.cross(AB, AC, axis=2),
+                    axes=(2,)
+                )
+
+
+            elif cell_type == 'quad':
+                D1 = p_list[2] - p_list[0]
+                D2 = p_list[3] - p_list[1]
+                D1D2_cross = csdl.cross(D1, D2, axis=2)
+                D1D2_cross_norm = csdl.norm(D1D2_cross, axes=(2,))
+                panel_area = D1D2_cross_norm/2.
+                normal_vec = D1D2_cross / csdl.expand(D1D2_cross_norm, D1D2_cross.shape, 'jk->jka')
+
+                S3 = (p_list[2] + p_list[3])/2.
+
+                m_dir = S3 - panel_center
+                m_norm = csdl.norm(m_dir, axes=(2,))
+                m_vec = m_dir / csdl.expand(m_norm, m_dir.shape, 'jk->jka')
+                l_vec = csdl.cross(m_vec, normal_vec, axis=2)
+
+            panel_center_mod = panel_center - normal_vec*0.001
+
+            mesh_dict['panel_center_mod_' + cell_type] = panel_center_mod
+            mesh_dict['panel_area_' + cell_type] = panel_area
+            mesh_dict['panel_x_dir_' + cell_type] = l_vec
+            mesh_dict['panel_y_dir_' + cell_type] = m_vec
+            mesh_dict['panel_normal_' + cell_type] = normal_vec
+
+            s = s = csdl.Variable(shape=panel_corners.shape, value=0.)
+            s = s.set(csdl.slice[:,:,:-1,:], value=panel_corners[:,:,1:,:] - panel_corners[:,:,:-1,:])
+            s = s.set(csdl.slice[:,:,-1,:], value=panel_corners[:,:,0,:] - panel_corners[:,:,-1,:])
+
+            l_exp = csdl.expand(l_vec, panel_corners.shape, 'klm->klam')
+            m_exp = csdl.expand(m_vec, panel_corners.shape, 'klm->klam')
+
+            S = csdl.norm(s, axes=(3,)) # NOTE: ADD NUMERICAL SOFTENING HERE BECAUSE OVERLAPPING NODES WILL CAUSE THIS TO BE 0 --> added to the equations instead
+            # S = csdl.norm(s, axes=(5,)) # NOTE: ADD NUMERICAL SOFTENING HERE BECAUSE OVERLAPPING NODES WILL CAUSE THIS TO BE 0
+            SL = csdl.sum(s*l_exp, axes=(3,))
+            SM = csdl.sum(s*m_exp, axes=(3,))
+
+            mesh_dict['S_' + cell_type] = S
+            mesh_dict['SL_' + cell_type] = SL
+            mesh_dict['SM_' + cell_type] = SM
+
+            loop_vals = [p1_indices, p2_indices, p3_indices]
+            if cell_type == 'quad':
+                loop_vals.append(p4_indices)
+            nn_loop_vals = np.arange(nodal_vel.shape[0]).tolist()
+            with csdl.experimental.enter_loop(vals=[nn_loop_vals]) as nn_loop_builder:
+                n = nn_loop_builder.get_loop_indices()
+                with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+                    loop_ind_var = loop_builder.get_loop_indices()
+                    v_list_inner = [nodal_vel[n,j,:] for j in range(num_corners)]
+                    # v1 = nodal_vel[n,i,:]
+                    # v2 = nodal_vel[n,j,:]
+                    # v3 = nodal_vel[n,k,:]
+                v_list_outer = [loop_builder.add_stack(val) for val in v_list_inner]
+                # v1 = loop_builder.add_stack(v1)
+                # v2 = loop_builder.add_stack(v2)
+                # v3 = loop_builder.add_stack(v3)
+                loop_builder.finalize()
+            v_list = [nn_loop_builder.add_stack(val) for val in v_list_outer]
+            # v1 = nn_loop_builder.add_stack(v1)
+            # v2 = nn_loop_builder.add_stack(v2)
+            # v3 = nn_loop_builder.add_stack(v3)
+            nn_loop_builder.finalize()
+
+            mesh_dict['coll_point_velocity_' + cell_type] = sum(v_list) / num_corners
+
+        # CP DELTA CALCULATION MIGHT NEED TO BE DONE IN A SEPARATE LOOP
+        num_cell_per_type = [len(cell_adjacency_types[cell_type]) for cell_type in cell_types]
+        num_cells = sum(num_cell_per_type)
+
+        panel_normal = csdl.Variable(value=np.zeros((num_nodes, num_cells, 3)))
+        panel_x_dir = csdl.Variable(value=np.zeros(panel_normal.shape))
+        panel_y_dir = csdl.Variable(value=np.zeros(panel_normal.shape))
+        panel_center = csdl.Variable(value=np.zeros(panel_normal.shape))
+        panel_area = csdl.Variable(value=np.zeros(panel_normal.shape[:-1]))
+        coll_point_velocity = csdl.Variable(value=np.zeros((nodal_vel.shape[0],) + panel_normal.shape[1:]))
+        print(nodal_vel.shape)
+
+        start, stop = 0, 0
+        for i, cell_type in enumerate(cell_types):
+            stop += num_cell_per_type[i]
+            panel_normal = panel_normal.set(csdl.slice[:,start:stop,:], mesh_dict['panel_normal_'+cell_type])
+            panel_x_dir = panel_x_dir.set(csdl.slice[:,start:stop,:], mesh_dict['panel_x_dir_'+cell_type])
+            panel_y_dir = panel_y_dir.set(csdl.slice[:,start:stop,:], mesh_dict['panel_y_dir_'+cell_type])
+            panel_center = panel_center.set(csdl.slice[:,start:stop,:], mesh_dict['panel_center_'+cell_type])
+            coll_point_velocity = coll_point_velocity.set(csdl.slice[:,start:stop,:], mesh_dict['coll_point_velocity_'+cell_type])
+            panel_area = panel_area.set(csdl.slice[:,start:stop], mesh_dict['panel_area_'+cell_type])
+
+
+            start += num_cell_per_type[i]
+
+        mesh_dict['panel_normal'] = panel_normal
+        mesh_dict['panel_x_dir'] = panel_x_dir
+        mesh_dict['panel_y_dir'] = panel_y_dir
         mesh_dict['panel_center'] = panel_center
-
-        panel_corners = csdl.Variable(shape=panel_center.shape[:-1] + (3,3), value=0.) # (3,3) is 3 points, 3 dimensions
-        panel_corners = panel_corners.set(csdl.slice[:,:,0,:], value=p1)
-        panel_corners = panel_corners.set(csdl.slice[:,:,1,:], value=p2)
-        panel_corners = panel_corners.set(csdl.slice[:,:,2,:], value=p3)
-        mesh_dict['panel_corners'] = panel_corners
-
-        a = csdl.norm(p2-p1, axes=(2,))
-        b = csdl.norm(p3-p2, axes=(2,))
-        c = csdl.norm(p1-p3, axes=(2,))
-
-        s = (a+b+c)/2.
-        panel_area = (s*(s-a)*(s-b)*(s-c))**0.5
+        mesh_dict['coll_point_velocity'] = coll_point_velocity
         mesh_dict['panel_area'] = panel_area
 
-        m12 = (p1+p2)/2.
-        m23 = (p2+p3)/2.
-        m31 = (p3+p1)/2.
+        start, stop = 0, 0
+        for i, cell_type in enumerate(cell_types):
+            cell_point_indices = np.array(cells[cell_type])
+            if cell_type == 'triangle':
+                num_corners = 3
+            elif cell_type == 'quad':
+                num_corners = 4
 
-        l_vec = m12 - panel_center
-        l_vec = l_vec / csdl.expand(csdl.norm(l_vec, axes=(2,)), l_vec.shape, 'jk->jka')
+            cell_adjacency = np.array(cell_adjacency_types[cell_type])
+            num_panels_cell_type = len(cell_adjacency)
+            stop += num_panels_cell_type
 
-        normal_vec = csdl.cross(l_vec, m23-panel_center, axis=2)
-        normal_vec = normal_vec / csdl.expand(csdl.norm(normal_vec, axes=(2,)), l_vec.shape, 'jk->jka')
+            panel_indices_np_int = list(np.arange(len(cell_point_indices)) + start)
+            panel_indices = [int(x) for x in panel_indices_np_int]
+            # NOTE: we add "start" to this to signify the shift in panel indices with different types
+            # this is only needed with mixed grids
 
-        m_vec = csdl.cross(normal_vec, l_vec, axis=2)
+            cp_delta_1_ind_np_int = list(cell_adjacency[:,0])
+            cp_delta_2_ind_np_int = list(cell_adjacency[:,1])
+            cp_delta_3_ind_np_int = list(cell_adjacency[:,2])
 
-        mesh_dict['panel_x_dir'] = l_vec
-        mesh_dict['panel_y_dir'] = m_vec
-        mesh_dict['panel_normal'] = normal_vec
+            cp_delta_1_ind = [int(x) for x in cp_delta_1_ind_np_int]
+            cp_delta_2_ind = [int(x) for x in cp_delta_2_ind_np_int]
+            cp_delta_3_ind = [int(x) for x in cp_delta_3_ind_np_int]
 
-        panel_center_mod = panel_center - normal_vec*0.001
-        # panel_center_mod = panel_center 
-        mesh_dict['panel_center_mod'] = panel_center_mod
+            loop_vals = [panel_indices, cp_delta_1_ind, cp_delta_2_ind, cp_delta_3_ind]
+            if cell_type == 'quad':
+                cp_delta_4_ind_np_int = list(cell_adjacency[:,3])
+                cp_delta_4_ind = [int(x) for x in cp_delta_4_ind_np_int]
+                loop_vals.append(cp_delta_4_ind)
 
-        rot_mat = csdl.Variable(value=np.zeros(normal_vec.shape + (3,))) # taken from dissertation of Pranav Prashant Ladkat, Pg. 26 eq. 4.5 
-        rot_mat = rot_mat.set(csdl.slice[:,:,:,0], value=l_vec)
-        rot_mat = rot_mat.set(csdl.slice[:,:,:,1], value=m_vec)
-        rot_mat = rot_mat.set(csdl.slice[:,:,:,2], value=normal_vec)
-        mesh_dict['rot_mat'] = rot_mat # rotation matrix transforms panel coordinates to global coordinates
+            nn_loop_vals = [np.arange(num_nodes).tolist()]
+            with csdl.experimental.enter_loop(vals=nn_loop_vals) as nn_loop_builder:
+                n = nn_loop_builder.get_loop_indices()
+                with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+                    loop_ind_var = loop_builder.get_loop_indices()
+                    cp_delta_inner = [
+                        panel_center[n,loop_ind_var[1+j],:] - panel_center[n,loop_ind_var[0],:]
+                        for j in range(num_corners)
+                    ]
+                    # cp_delta_1 = panel_center[n,loop_ind_var[1],:] - panel_center[n,loop_ind_var[0],:]
+                    # cp_delta_2 = panel_center[n,loop_ind_var[2],:] - panel_center[n,loop_ind_var[0],:]
+                    # cp_delta_3 = panel_center[n,loop_ind_var[3],:] - panel_center[n,loop_ind_var[0],:]
+                cp_delta_outer = [loop_builder.add_stack(val) for val in cp_delta_inner]
+                # cp_delta_1 = loop_builder.add_stack(cp_delta_1)
+                # cp_delta_2 = loop_builder.add_stack(cp_delta_2)
+                # cp_delta_3 = loop_builder.add_stack(cp_delta_3)
+                loop_builder.finalize()
 
-        s = csdl.Variable(shape=panel_corners.shape, value=0.)
-        s = s.set(csdl.slice[:,:,:-1,:], value=panel_corners[:,:,1:,:] - panel_corners[:,:,:-1,:])
-        s = s.set(csdl.slice[:,:,-1,:], value=panel_corners[:,:,0,:] - panel_corners[:,:,-1,:])
+            # cp_delta_1 = nn_loop_builder.add_stack(cp_delta_1)
+            # cp_delta_2 = nn_loop_builder.add_stack(cp_delta_2)
+            # cp_delta_3 = nn_loop_builder.add_stack(cp_delta_3)
+            cp_delta_list = [nn_loop_builder.add_stack(val) for val in cp_delta_outer]
+            nn_loop_builder.finalize()
+            
+            panel_corners_cell = mesh_dict['panel_corners_'+cell_type]
+            cp_deltas = csdl.Variable(shape=panel_corners_cell.shape, value=0.)
+            for j in range(num_corners):
+                cp_deltas = cp_deltas.set(csdl.slice[:,:,j,:], value=cp_delta_list[j])
+            
+            cell_deltas = csdl.Variable(shape=panel_corners_cell.shape[:-1] + (2,), value=0.) # deltas only in l and m directions
+            l_vec_asdf = mesh_dict['panel_x_dir_'+cell_type]
+            m_vec_asdf = mesh_dict['panel_y_dir_'+cell_type]
+            for j in range(num_corners):
+                cell_deltas = cell_deltas.set(csdl.slice[:,:,j,0], value=csdl.sum(cp_deltas[:,:,j,:]*l_vec_asdf, axes=(2,)))
+                cell_deltas = cell_deltas.set(csdl.slice[:,:,j,1], value=csdl.sum(cp_deltas[:,:,j,:]*m_vec_asdf, axes=(2,)))
 
-        l_exp = csdl.expand(l_vec, panel_corners.shape, 'klm->klam')
-        m_exp = csdl.expand(m_vec, panel_corners.shape, 'klm->klam')
-        
-        S = csdl.norm(s, axes=(3,)) # NOTE: ADD NUMERICAL SOFTENING HERE BECAUSE OVERLAPPING NODES WILL CAUSE THIS TO BE 0 --> added to the equations instead
-        # S = csdl.norm(s, axes=(5,)) # NOTE: ADD NUMERICAL SOFTENING HERE BECAUSE OVERLAPPING NODES WILL CAUSE THIS TO BE 0
-        SL = csdl.sum(s*l_exp, axes=(3,))
-        SM = csdl.sum(s*m_exp, axes=(3,))
-
-        mesh_dict['S'] = S
-        mesh_dict['SL'] = SL
-        mesh_dict['SM'] = SM
-
-        # ==== USING CSDL FRANGE ====
-        cp_delta_1_ind_np_int = list(cell_adjacency[:,0])
-        cp_delta_2_ind_np_int = list(cell_adjacency[:,1])
-        cp_delta_3_ind_np_int = list(cell_adjacency[:,2])
-
-        cp_delta_1_ind = [int(x) for x in cp_delta_1_ind_np_int]
-        cp_delta_2_ind = [int(x) for x in cp_delta_2_ind_np_int]
-        cp_delta_3_ind = [int(x) for x in cp_delta_3_ind_np_int]
-
-        # cp_deltas = csdl.Variable(shape=panel_corners.shape, value=0.)
-        # for cell_ind, ind1, ind2, ind3 in csdl.frange(vals=(panel_indices, cp_delta_1_ind, cp_delta_2_ind, cp_delta_3_ind)):
-        #     cp_deltas = cp_deltas.set(csdl.slice[:,cell_ind,0,:], value=panel_center[:,ind1,:] - panel_center[:,cell_ind,:])
-        #     cp_deltas = cp_deltas.set(csdl.slice[:,cell_ind,1,:], value=panel_center[:,ind2,:] - panel_center[:,cell_ind,:])
-        #     cp_deltas = cp_deltas.set(csdl.slice[:,cell_ind,2,:], value=panel_center[:,ind3,:] - panel_center[:,cell_ind,:])
-        
-        # ==== USING STACK VIA LOOP BUILDER ====
-        loop_vals = [panel_indices, cp_delta_1_ind, cp_delta_2_ind, cp_delta_3_ind]
-        with csdl.experimental.enter_loop(vals=nn_loop_vals) as nn_loop_builder:
-            n = nn_loop_builder.get_loop_indices()
-            with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
-                i,a,b,c = loop_builder.get_loop_indices()
-                cp_delta_1 = panel_center[n,a,:] - panel_center[n,i,:]
-                cp_delta_2 = panel_center[n,b,:] - panel_center[n,i,:]
-                cp_delta_3 = panel_center[n,c,:] - panel_center[n,i,:]
-            cp_delta_1 = loop_builder.add_stack(cp_delta_1)
-            cp_delta_2 = loop_builder.add_stack(cp_delta_2)
-            cp_delta_3 = loop_builder.add_stack(cp_delta_3)
-            loop_builder.finalize()
-
-        cp_delta_1 = nn_loop_builder.add_stack(cp_delta_1)
-        cp_delta_2 = nn_loop_builder.add_stack(cp_delta_2)
-        cp_delta_3 = nn_loop_builder.add_stack(cp_delta_3)
-        nn_loop_builder.finalize()
-        # cp_delta_1 = cp_delta_1.reshape((num_nodes, num_panels, 3))
-        # cp_delta_2 = cp_delta_2.reshape((num_nodes, num_panels, 3))
-        # cp_delta_3 = cp_delta_3.reshape((num_nodes, num_panels, 3))
-
-        cp_deltas = csdl.Variable(shape=panel_corners.shape, value=0.)
-        cp_deltas = cp_deltas.set(csdl.slice[:,:,0,:], value=cp_delta_1)
-        cp_deltas = cp_deltas.set(csdl.slice[:,:,1,:], value=cp_delta_2)
-        cp_deltas = cp_deltas.set(csdl.slice[:,:,2,:], value=cp_delta_3)
-
-
-        cell_deltas = csdl.Variable(shape=panel_corners.shape[:-1] + (2,), value=0.) # each cell has 3 deltas, with 2 dimensions (l,m)
-        cell_deltas = cell_deltas.set(csdl.slice[:,:,0,0], value=csdl.sum(cp_deltas[:,:,0,:]*l_vec, axes=(2,)))
-        cell_deltas = cell_deltas.set(csdl.slice[:,:,0,1], value=csdl.sum(cp_deltas[:,:,0,:]*m_vec, axes=(2,)))
-        cell_deltas = cell_deltas.set(csdl.slice[:,:,1,0], value=csdl.sum(cp_deltas[:,:,1,:]*l_vec, axes=(2,)))
-        cell_deltas = cell_deltas.set(csdl.slice[:,:,1,1], value=csdl.sum(cp_deltas[:,:,1,:]*m_vec, axes=(2,)))
-        cell_deltas = cell_deltas.set(csdl.slice[:,:,2,0], value=csdl.sum(cp_deltas[:,:,2,:]*l_vec, axes=(2,)))
-        cell_deltas = cell_deltas.set(csdl.slice[:,:,2,1], value=csdl.sum(cp_deltas[:,:,2,:]*m_vec, axes=(2,)))
+            mesh_dict['delta_coll_point_' + cell_type] = cell_deltas
+            start += num_panels_cell_type
 
         upper_TE_cells = mesh_dict['upper_TE_cells']
         lower_TE_cells = mesh_dict['lower_TE_cells']
         num_TE_cells = len(upper_TE_cells)
         upper_loc_list, lower_loc_list = [], []
 
+        cells_per_type = [len(cell_adjacency_types[cell_type]) for cell_type in cell_types]
+
+        # inner list is the delta to set to zero for TE elements (tri: [0,2] and quad: [0,3])
+        upper_TE_cells_types = [[] for i in cells_per_type]
+        lower_TE_cells_types = [[] for i in cells_per_type]
+        lower_loc_list = [[] for i in cells_per_type] # inner list represents the indices for the cell types
+        upper_loc_list = [[] for i in cells_per_type] # inner list represents the indices for the cell types
+
         for i in range(num_TE_cells):
             upper_cell_ind, lower_cell_ind = upper_TE_cells[i], lower_TE_cells[i]
-            upper_cell_neighbors = cell_adjacency[upper_cell_ind]
-            lower_cell_neighbors = cell_adjacency[lower_cell_ind]
 
-            upper_loc = np.where(lower_cell_neighbors == upper_cell_ind)[0][0]
-            lower_loc = np.where(upper_cell_neighbors == lower_cell_ind)[0][0]
+            
+            start_j, stop_j = 0, 0
+            for j, cell_type_j in enumerate(cell_types):
+                cell_adjacency = np.array(cell_adjacency_types[cell_type_j])
+                stop_j += cells_per_type[j]
 
-            upper_loc_list.append(upper_loc)
-            lower_loc_list.append(lower_loc)
+                # NOTE: THIS IS WRONG --> WE NEED TO CHECK IF THE upper_cell_ind and lower_cell_ind
+                # ARE IN THE RANGE OF PANEL INDICES CORRESPONDING TO THIS CELL TYPE
+                # start <= upper_cell_ind < stop to continue loop (& same for lower_cell_ind)
+                # check_upper = np.where(cell_adjacency == upper_cell_ind)[0]
+                # check_lower = np.where(cell_adjacency == lower_cell_ind)[0]
+                # if len(check_upper):
+                if upper_cell_ind <= start_j or upper_cell_ind > stop_j:
+                    start_j += cells_per_type[j]
+                    continue # ignores this panel for this cell type
 
-        cell_deltas = cell_deltas.set(csdl.slice[:,list(upper_TE_cells),lower_loc_list,:], value=0.)
-        cell_deltas = cell_deltas.set(csdl.slice[:,list(lower_TE_cells),upper_loc_list,:], value=0.)
+                upper_cell_neighbors = cell_adjacency[upper_cell_ind-start_j]
+                lower_cell_neighbors = cell_adjacency[lower_cell_ind-start_j]
+                upper_loc = np.where(lower_cell_neighbors == upper_cell_ind)[0][0]
+                lower_loc = np.where(upper_cell_neighbors == lower_cell_ind)[0][0]
 
-        mesh_dict['delta_coll_point'] = cell_deltas
-        # NOTE: CHECK IF AXIS ON THESE LINES ABOVE SHOULD BE 2 OR 3
-
-        nodal_vel = mesh_dict['nodal_velocity']
-        # num_nodes = nodal_vel.shape[0]
-        nn_loop_vals = np.arange(nodal_vel.shape[0]).tolist()
-        # ==== WITH DUPLICATE NODES ====
-        # v1 = nodal_vel[:,list(cell_point_indices[:,0]),:]
-        # v2 = nodal_vel[:,list(cell_point_indices[:,1]),:]
-        # v3 = nodal_vel[:,list(cell_point_indices[:,2]),:]
-
-        # ==== USING CSDL FRANGE ====
-        # v1 = csdl.Variable(shape=(num_nodes, cell_point_indices.shape[0], 3), value=0.)
-        # v2 = csdl.Variable(shape=(num_nodes, cell_point_indices.shape[0], 3), value=0.)
-        # v3 = csdl.Variable(shape=(num_nodes, cell_point_indices.shape[0], 3), value=0.)
-
-        # for cell_ind, ind1, ind2, ind3 in csdl.frange(vals=(panel_indices, p1_indices, p2_indices, p3_indices)):
-        #     v1 = v1.set(csdl.slice[:,cell_ind,:], value=nodal_vel[:,ind1,:])
-        #     v2 = v2.set(csdl.slice[:,cell_ind,:], value=nodal_vel[:,ind2,:])
-        #     v3 = v3.set(csdl.slice[:,cell_ind,:], value=nodal_vel[:,ind3,:])
-
-        # ==== USING STACK VIA LOOP BUILDER ====
-        loop_vals = [p1_indices, p2_indices, p3_indices]
-        with csdl.experimental.enter_loop(vals=[nn_loop_vals]) as nn_loop_builder:
-            n = nn_loop_builder.get_loop_indices()
-            with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
-                i,j,k = loop_builder.get_loop_indices()
-                v1 = nodal_vel[n,i,:]
-                v2 = nodal_vel[n,j,:]
-                v3 = nodal_vel[n,k,:]
-            v1 = loop_builder.add_stack(v1)
-            v2 = loop_builder.add_stack(v2)
-            v3 = loop_builder.add_stack(v3)
-            loop_builder.finalize()
-        v1 = nn_loop_builder.add_stack(v1)
-        v2 = nn_loop_builder.add_stack(v2)
-        v3 = nn_loop_builder.add_stack(v3)
-        nn_loop_builder.finalize()
-        # v1 = v1.reshape((num_nodes, num_panels, 3))
-        # v2 = v2.reshape((num_nodes, num_panels, 3))
-        # v3 = v3.reshape((num_nodes, num_panels, 3))
+                upper_TE_cells_types[j].append(upper_cell_ind-start_j)
+                lower_TE_cells_types[j].append(lower_cell_ind-start_j)
+                upper_loc_list[j].append(upper_loc)
+                lower_loc_list[j].append(lower_loc)
+                
+                start_j += cells_per_type[j]
         
-        mesh_dict['coll_point_velocity'] = (v1+v2+v3)/3.
+        for i, cell_type in enumerate(cell_types):
+            # print(upper_TE_cells_types)
+            # print(lower_loc_list)
+            cell_deltas_type = mesh_dict['delta_coll_point_' + cell_type]
+            cell_deltas_type = cell_deltas_type.set(
+                csdl.slice[:,upper_TE_cells_types[i], lower_loc_list[i],:],
+                value=0.
+            )
+            cell_deltas_type = cell_deltas_type.set(
+                csdl.slice[:,lower_TE_cells_types[i], upper_loc_list[i],:],
+                value=0.
+            )
+            mesh_dict['delta_coll_point_' + cell_type] = cell_deltas_type
+
     return mesh_dict

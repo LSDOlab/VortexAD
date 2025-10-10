@@ -5,7 +5,7 @@ from vedo import *
 import matplotlib.pyplot as plt
 plt.rcParams.update(plt.rcParamsDefault)
 
-def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds=None, on='cells', surface_color='white', cmap='jet', interactive=False, top_view=False, front_top_view=False):
+def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds=None, on='cells', surface_color='white', cmap='jet', interactive=False, top_view=False, front_top_view=False, camera=False, screenshot=False):
     vedo.settings.default_backend = 'vtk'
     axs = Axes(
         xrange=(0,3),
@@ -74,7 +74,9 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     #         axes=False, interactive=False)  # render the scene
     # vp.show(axs, elevation=-60, azimuth=-90, roll=90,
     #         axes=False, interactive=False, zoom=True)  # render the scene
-    if top_view:
+    if camera:
+        vp.show(vps, camera=camera, interactive=interactive, screenshot=screenshot)  # render the scene
+    elif top_view:
         vp.show(axs, elevation=0, azimuth=0, roll=90,
                 axes=False, interactive=interactive)  # render the scene
     elif front_top_view:

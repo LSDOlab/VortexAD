@@ -2,8 +2,8 @@ import numpy as np
 import csdl_alpha as csdl
 import meshio
 
-from VortexAD.utils.unstructured_grids.cell_adjacency_old import find_cell_adjacency_old
-from VortexAD.utils.unstructured_grids.TE_detection_old import TE_detection_old
+from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency
+from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
 
 from VortexAD.core.pm.steady_panel_solver import steady_panel_solver
 import os
@@ -290,7 +290,7 @@ class PanelMethod(object):
             self.orig_mesh_dict,
             self.options_dict,
         )
-
+        
         for key in mesh_dict.keys():
             pm_output_dict[key] = mesh_dict[key]
 
@@ -329,7 +329,7 @@ class PanelMethod(object):
         self.points_orig = mesh.points
         # self.cells = mesh.cells
         self.cells_dict_orig = mesh.cells_dict
-        self.cells_dict_orig = mesh.cells_dict['triangle']
+        # self.cells_dict_orig = mesh.cells_dict['triangle']
     
     def overwrite_mesh(self, mesh):
         self.points = mesh
@@ -338,7 +338,7 @@ class PanelMethod(object):
         '''
         Computing cell adjacency informatiom.
         '''
-        cell_adjacency_data = find_cell_adjacency_old(
+        cell_adjacency_data = find_cell_adjacency(
             points=self.points_orig, 
             cells=self.cells_dict_orig, 
             radius=radius
@@ -360,7 +360,7 @@ class PanelMethod(object):
         if not self.cell_adjacency_flag:
             self.compute_cell_adjacency()
 
-        TE_properties = TE_detection_old(
+        TE_properties = TE_detection(
             points=self.points,
             cells=self.cells,
             edges2cells=self.edges2cells,
@@ -425,18 +425,18 @@ class PanelMethod(object):
         self.TE_properties_flag = True
 
     
-    def plot(self, data_to_plot, bounds=None, cmap='jet'):
+    def plot(self, data_to_plot, bounds=None, cmap='jet', camera=False, screenshot=False):
         '''
         Plotting function for scalar field variables.
         '''
         from VortexAD.utils.plotting.plot_unstructured import plot_pressure_distribution
-        plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=self.cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap)
-        # cell_types = self.cells.keys()
-        # num_cells = np.sum([len(self.cells[cell_type]) for cell_type in cell_types])
-        # combined_cells = []
-        # for cell_type in cell_types:
-        #     combined_cells += self.cells[cell_type].tolist()
-        # plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=combined_cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap)
+        # plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=self.cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap)
+        cell_types = self.cells.keys()
+        num_cells = np.sum([len(self.cells[cell_type]) for cell_type in cell_types])
+        combined_cells = []
+        for cell_type in cell_types:
+            combined_cells += self.cells[cell_type].tolist()
+        plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=combined_cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap, camera=camera, screenshot=screenshot)
     
     # def conduct_off_body_analysis(self, eval_pts):
     #     velocity = off_body_analysis(eval_pts)

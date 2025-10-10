@@ -151,7 +151,7 @@ def unstructured_least_squares_velocity_old(mu, delta_coll_point, cell_adjacency
 
     return ql, qm
 
-def unstructured_least_squares_velocity(mu, delta_coll_point, cell_adjacency, constant_geometry=False):
+def unstructured_least_squares_velocity_tri(mu, delta_coll_point, cell_adjacency, constant_geometry=False):
 
     num_nodes = mu.shape[0]
     num_tot_panels = mu.shape[1]
@@ -309,7 +309,7 @@ def unstructured_least_squares_velocity(mu, delta_coll_point, cell_adjacency, co
     return ql, qm
 
 
-def unstructured_least_squares_velocity_mixed(mu, delta_coll_point, cell_adjacency, start, constant_geometry=False):
+def unstructured_least_squares_velocity(mu, delta_coll_point, cell_adjacency, start, constant_geometry=False):
 
     num_nodes = mu.shape[0]
     num_panels = cell_adjacency.shape[0]

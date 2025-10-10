@@ -1,10 +1,10 @@
 import numpy as np 
 import csdl_alpha as csdl
 
-from VortexAD.core.pm.pre_processor_mixed import pre_processor
-from VortexAD.core.pm.source_doublet.mu_sigma_solver_mixed import mu_sigma_solver
+from VortexAD.core.pm.pre_processor_tri import pre_processor
+from VortexAD.core.pm.source_doublet.mu_sigma_solver_tri import mu_sigma_solver
 # from VortexAD.core.panel_method.steady.mu_sigma_solver_iterative import mu_sigma_solver_iterative
-from VortexAD.core.pm.post_processor_mixed import post_processor, unstructured_post_processor
+from VortexAD.core.pm.post_processor_tri import post_processor, unstructured_post_processor
 
 # def source_doublet_solver(exp_orig_mesh_dict, num_nodes, mesh_mode, constant_geometry, M_inf, rho, batch_size, Cp_cutoff, boundary_condition, patch_flag, iterative=False, warm_start=None, ROM=False, ref_point=np.zeros(3)):
 def source_doublet_solver(orig_mesh_dict, solver_options_dict):

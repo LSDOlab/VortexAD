@@ -1,6 +1,6 @@
 # Basics
 
-
+WIP
 <!-- In linearized, incompressible potential flow, we aim to solve the Laplace equation everywhere in space: 
 
 $$ \nabla^2 \phi = 0, $$

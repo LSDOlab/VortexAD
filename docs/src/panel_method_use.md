@@ -9,7 +9,7 @@ This page highlights key information on using the panel code within VortexAD.
 :includehidden:
 
 panel_method/inputs
-panel_method/meshing
+<!-- panel_method/meshing -->
 panel_method/outputs
 <!-- panel_method/best_practices -->
 ```

@@ -10,7 +10,7 @@ import csdl_alpha as csdl
 
 from VortexAD.utils.plotting.plot_unstructured import plot_pressure_distribution
 
-from VortexAD import PanelMethod, PanelMethodMixed
+from VortexAD import PanelMethod, PanelMethodTri
 from VortexAD import SAMPLE_GEOMETRY_PATH
 
 # instantiate recorder to assemble the graph
@@ -19,7 +19,7 @@ recorder.start()
 
 # set up input dictionary
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_mixed.msh'# tri + quad
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_quad.msh'# quads ONLY
+# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_quad.msh'# quads ONLY
 # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine.stl' # triangles
 
 pitch = csdl.Variable(value=np.array([3.06]))
@@ -39,13 +39,13 @@ input_dict = {
 mixed = True
 
 if not mixed:
-    panel_method = PanelMethod(
+    panel_method = PanelMethodTri(
         input_dict,
         # skip_geometry=True
     )
 
 else:
-    panel_method = PanelMethodMixed(
+    panel_method = PanelMethod(
         input_dict,
     )
 
@@ -65,7 +65,7 @@ pm_outputs = [
     'panel_center'
 ]
 
-pm_outputs.append('delta_coll_point_quad')
+# pm_outputs.append('delta_coll_point_quad')
 # pm_outputs.append('delta_coll_point_triangle')
 
 # if mixed:
@@ -99,13 +99,13 @@ panel_area = outputs['panel_area']
 panel_center = outputs['panel_center']
 # delta_coll_point = outputs[pm_outputs[-1]]
 
-dcp_quad = outputs['delta_coll_point_quad']
+# dcp_quad = outputs['delta_coll_point_quad']
 # dcp_tri = outputs['delta_coll_point_triangle']
 
 # csdl-jax stuff
 inputs = [pitch]
-# outputs = [CL, CDi, CP, sigma, mu, AIC_mu, ql, qm, qn, panel_area, delta_coll_point]
-outputs = [CL, CDi, CP, sigma, mu, AIC_mu, ql, qm, qn, panel_area, panel_center, dcp_quad]
+outputs = [CL, CDi, CP]
+# outputs = [CL, CDi, CP, sigma, mu, AIC_mu, ql, qm, qn, panel_area, panel_center, dcp_quad]
 # outputs.append(dcp_tri)
 
 sim = csdl.experimental.JaxSimulator(
@@ -119,38 +119,50 @@ sim.run()
 CL_val = sim[CL]
 CDi_val = sim[CDi]
 CP_val = sim[CP]
-sigma_val = sim[sigma]
-mu_val = sim[mu]
-AIC_mu_val = sim[AIC_mu]
-ql_val = sim[ql]
-qm_val = sim[qm]
-qn_val = sim[qn]
-panel_area_val = sim[panel_area]
-panel_center_val = sim[panel_center]
-dcp_quad_val = sim[dcp_quad]
+# sigma_val = sim[sigma]
+# mu_val = sim[mu]
+# AIC_mu_val = sim[AIC_mu]
+# ql_val = sim[ql]
+# qm_val = sim[qm]
+# qn_val = sim[qn]
+# panel_area_val = sim[panel_area]
+# panel_center_val = sim[panel_center]
+# dcp_quad_val = sim[dcp_quad]
 # dcp_tri_val = sim[dcp_tri]
 
 print('CL:', CL_val)
 print('CDi:', CDi_val)
 
-data_dict = {
-    'mu': mu_val,
-    'Cp': CP_val,
-    'ql': ql_val,
-    'qm': qm_val,
-    'qn': qn_val,
-    'AIC_mu': AIC_mu_val,
-    # 'delta_coll_point': dcp_val,
-    'panel_area': panel_area_val
-}
+# data_dict = {
+#     'mu': mu_val,
+#     'Cp': CP_val,
+#     'ql': ql_val,
+#     'qm': qm_val,
+#     'qn': qn_val,
+#     'AIC_mu': AIC_mu_val,
+#     # 'delta_coll_point': dcp_val,
+#     'panel_area': panel_area_val
+# }
 
-import pickle
-file_name = f'data_mixed_{str(mixed)}.pkl'
+# import pickle
+# file_name = f'data_mixed_{str(mixed)}.pkl'
 # with open(file_name, 'wb') as file:
 #     pickle.dump(data_dict, file)
 
-panel_method.plot(CP_val, bounds=[-3,1])
-panel_method.plot(mu_val)
+cam = dict(
+    pos=(-2.58942, -3.07910, 2.89622),
+    focal_point=(0.0139380, 0.602604, 0.292856),
+    viewup=(0.457107, 0.853553, 0.250000),
+    roll=45.0000,
+    distance=5.20672,
+    clipping_range=(2.82969, 8.21148),
+)
+
+
+# panel_method.plot(CP_val, bounds=[-3,1])
+panel_method.plot(CP_val, bounds=[-3,1], camera=cam)
+exit()
+# panel_method.plot(mu_val)
 # panel_method.plot(sigma_val)
 
 
