@@ -6,6 +6,7 @@ from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency
 from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
 
 from VortexAD.core.pm.steady_panel_solver import steady_panel_solver
+from VortexAD.core.pm.unsteady_panel_solver import unsteady_panel_solver
 import os
 
 current_directory = os.getcwd()
@@ -52,7 +53,14 @@ default_input_dict = {
     'ref_area': 10., # reference area (l^2, l being the input length unit)
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
-    'drag_type': 'pressure' # pressure or Trefftz (not implemented yet)
+    'drag_type': 'pressure', # pressure or Trefftz (not implemented yet)
+
+    # unsteady solver
+    'dt': 0.1, # time step (s)
+    'nt': 10, # number of time steps
+    'store_state_history': True, # flag to store state history
+    'core_radius': 1.e-6, # vortex core radius
+    'free_wake': False,
 }
 
 output_options_dict = {
@@ -93,6 +101,7 @@ class PanelMethod(object):
         self.options_dict = options_dict
 
         self.reuse_AIC = self.options_dict['reuse_AIC']
+        self.solver_mode = self.options_dict['solver_mode']
 
         self.cell_adjacency_flag = False
         self.TE_properties_flag = False
@@ -286,10 +295,16 @@ class PanelMethod(object):
 
         self.__assemble_input_dict__()
 
-        pm_output_dict, mesh_dict = steady_panel_solver(
-            self.orig_mesh_dict,
-            self.options_dict,
-        )
+        if self.solver_mode == 'steady':
+            pm_output_dict, mesh_dict = steady_panel_solver(
+                self.orig_mesh_dict,
+                self.options_dict,
+            )
+        elif self.solver_mode == 'unsteady':
+            pm_output_dict, mesh_dict = unsteady_panel_solver(
+                self.orig_mesh_dict,
+                self.options_dict,
+            )
         
         for key in mesh_dict.keys():
             pm_output_dict[key] = mesh_dict[key]
