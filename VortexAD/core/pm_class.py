@@ -167,6 +167,11 @@ class PanelMethod(object):
             num_nodes = check_num_nodes(V_inf)
             nn_V_inf = num_nodes
 
+        if self.solver_mode == 'unsteady':
+            nt = self.options_dict['nt']
+            nn_V_inf = nt
+            num_nodes = nt
+
         # converting flow velocity into a grid
 
         # case where V_inf is a scalar and not a csdl variable:
@@ -257,13 +262,12 @@ class PanelMethod(object):
         nn_geom = self.num_nodes
         if self.reuse_AIC:
             nn_geom = 1
-        print(self.points.shape)
+
         self.points = csdl.expand(
             self.points,
             (nn_geom,) + self.points.shape,
             'ij->aij'
         )
-        print(self.points.shape)
 
         self.orig_mesh_dict = {
             'points': self.points,
@@ -296,18 +300,15 @@ class PanelMethod(object):
         self.__assemble_input_dict__()
 
         if self.solver_mode == 'steady':
-            pm_output_dict, mesh_dict = steady_panel_solver(
+            pm_output_dict = steady_panel_solver(
                 self.orig_mesh_dict,
                 self.options_dict,
             )
         elif self.solver_mode == 'unsteady':
-            pm_output_dict, mesh_dict = unsteady_panel_solver(
+            pm_output_dict = unsteady_panel_solver(
                 self.orig_mesh_dict,
                 self.options_dict,
             )
-        
-        for key in mesh_dict.keys():
-            pm_output_dict[key] = mesh_dict[key]
 
         output_dict = {}
         for output_name in self.output_name_list:

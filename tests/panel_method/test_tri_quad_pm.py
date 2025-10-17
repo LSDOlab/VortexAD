@@ -1,10 +1,3 @@
-'''NACA0012 rectangular wing: 
-
-Example of a rectangular wing with a NACA0012 airfoil. <br>
-Mesh is made using OpenVSP.
-
-'''
-
 import numpy as np
 import csdl_alpha as csdl
 

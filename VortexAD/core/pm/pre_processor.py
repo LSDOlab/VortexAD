@@ -280,6 +280,7 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
         panel_x_dir = csdl.Variable(value=np.zeros(panel_normal.shape))
         panel_y_dir = csdl.Variable(value=np.zeros(panel_normal.shape))
         panel_center = csdl.Variable(value=np.zeros(panel_normal.shape))
+        panel_center_mod = csdl.Variable(value=np.zeros(panel_normal.shape))
         panel_area = csdl.Variable(value=np.zeros(panel_normal.shape[:-1]))
         coll_point_velocity = csdl.Variable(value=np.zeros((nodal_vel.shape[0],) + panel_normal.shape[1:]))
         print(nodal_vel.shape)
@@ -291,6 +292,7 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
             panel_x_dir = panel_x_dir.set(csdl.slice[:,start:stop,:], mesh_dict['panel_x_dir_'+cell_type])
             panel_y_dir = panel_y_dir.set(csdl.slice[:,start:stop,:], mesh_dict['panel_y_dir_'+cell_type])
             panel_center = panel_center.set(csdl.slice[:,start:stop,:], mesh_dict['panel_center_'+cell_type])
+            panel_center_mod = panel_center_mod.set(csdl.slice[:,start:stop,:], mesh_dict['panel_center_mod_'+cell_type])
             coll_point_velocity = coll_point_velocity.set(csdl.slice[:,start:stop,:], mesh_dict['coll_point_velocity_'+cell_type])
             panel_area = panel_area.set(csdl.slice[:,start:stop], mesh_dict['panel_area_'+cell_type])
 
@@ -301,6 +303,7 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
         mesh_dict['panel_x_dir'] = panel_x_dir
         mesh_dict['panel_y_dir'] = panel_y_dir
         mesh_dict['panel_center'] = panel_center
+        mesh_dict['panel_center_mod'] = panel_center_mod
         mesh_dict['coll_point_velocity'] = coll_point_velocity
         mesh_dict['panel_area'] = panel_area
 

@@ -39,10 +39,6 @@ $ git clone https://github.com/LSDOlab/csdl_alpha.git
 $ cd csdl_alpha
 $ git checkout dev_custom
 $ pip install -e .
-```
-
-```{warning}
-This branch of CSDL requires `networkx`, which has yet to be added as a dependency. It can be installed by running `pip install networkx` in your terminal or command line.
 ``` -->
 
 `VortexAD` automatically installs other software tools to aid with plotting and reading complex grid & mesh files, described below.
@@ -53,9 +49,9 @@ This branch of CSDL requires `networkx`, which has yet to be added as a dependen
 | [JAX](https://docs.jax.dev/en/latest/) | Framework for high-performance numerical computing |
 | [meshio](https://pypi.org/project/meshio/) | I/O for mesh and grid files |
 | [vedo](https://vedo.embl.es/) | Plotting framework |
-<!-- | [Ozone](https://github.com/LSDOlab/ozone) | ODE software (future ) | -->
+| [Ozone](https://github.com/LSDOlab/ozone) | ODE software for unsteady solver |
 
-```{warning}
+```{note}
 `VortexAD` automatically installs the `dev_custom` branch of `csdl`, as some of the `csdl` developments have not been pushed to the `main` branch. This branch of CSDL also requires `networkx`, which is automatically installed as well.
 ```
 

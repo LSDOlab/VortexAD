@@ -25,4 +25,7 @@ def steady_panel_solver(orig_mesh_dict, solver_options_dict):
         mu = outputs[2]
         sigma = outputs[3]
 
+        for key in mesh_dict.keys():
+            output_dict[key] = mesh_dict[key]
+
         return output_dict, mesh_dict

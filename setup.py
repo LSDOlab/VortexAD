@@ -52,7 +52,8 @@ setup(
         'twine',
 
         # specific installations needed for VortexAD
-        'csdl_alpha @ git+https://github.com/LSDOlab/csdl_alpha.git@dev_custom',
+        'ozone @ git+https://github.com/LSDOlab/ozone.git', # auto installs csdl main branch
+        'csdl_alpha @ git+https://github.com/LSDOlab/csdl_alpha.git@dev_custom', # specific csdl branch
         'jax',
         'meshio==5.3.5',
         'vedo',
