@@ -18,6 +18,7 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     ref_chord           = solver_options_dict['ref_chord']
     moment_ref          = solver_options_dict['moment_reference']
     drag_type           = solver_options_dict['drag_type']
+    free_wake           = solver_options_dict['free_wake']
 
     if isinstance(rho, float):
         rho = csdl.Variable(value=np.array([rho]))
@@ -80,6 +81,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         qn = outputs['qn']
         # coll_pt_velocity = outputs['coll_pt_velocity']
         # planform_area = outputs['planform_area']
+        AIC_mu = outputs['AIC_mu']
+        AIC_sigma = outputs['AIC_sigma']
+        AIC_mu_wake = outputs['AIC_mu_wake']
 
         ozone_vars.profile_outputs['mu'] = mu
         ozone_vars.profile_outputs['panel_area'] = panel_area
@@ -92,6 +96,16 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         ozone_vars.profile_outputs['qn'] = qn
         # ozone_vars.profile_outputs['coll_pt_velocity'] = coll_pt_velocity
         # ozone_vars.profile_outputs['planform_area'] = planform_area
+
+        ozone_vars.profile_outputs['AIC_mu'] = AIC_mu
+        ozone_vars.profile_outputs['AIC_sigma'] = AIC_sigma
+        ozone_vars.profile_outputs['AIC_mu_wake'] = AIC_mu_wake
+
+        if free_wake:
+            # ozone_vars.profile_outputs['AIC_fw_mu'] = AIC_mu
+            ozone_vars.profile_outputs['AIC_fw_sigma'] = outputs['AIC_fw_sigma']
+            # ozone_vars.profile_outputs['AIC_fw_mu_w'] = AIC_mu_wake
+
 
     TE_node_indices = orig_mesh_dict['TE_node_indices']
     num_TE_pts = len(TE_node_indices)
@@ -106,6 +120,11 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         x_w_0 = csdl.expand(TE_pts[0,:], TE_pts.shape[1:], 'ij->aij')
     else:
         x_w_0 = TE_pts.reshape((np.prod(TE_pts.shape[:2]),3))
+        # x_w_0_shift = csdl.Variable(value=np.zeros(x_w_0.shape))
+        # x_w_0_shift = x_w_0_shift.set(
+        #     csdl.slice[:,0], value=0.001
+        # )
+        # x_w_0 = x_w_0 + x_w_0_shift
 
     # x_w_0 = csdl.Variable(value=np.zeros(nt, num_TE_pts)) 
     # x_w_0 = TE_pts # wake position initial condition
@@ -144,6 +163,13 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     qm = ode_outputs.profile_outputs['qm']
     qn = ode_outputs.profile_outputs['qn']
     # planform_area = ode_outputs.profile_outputs['planform_area']
+    AIC_mu = ode_outputs.profile_outputs['AIC_mu']
+    AIC_sigma = ode_outputs.profile_outputs['AIC_sigma']
+    AIC_mu_wake = ode_outputs.profile_outputs['AIC_mu_wake']
+
+
+    mu_w = ode_outputs.states['mu_w']
+    x_w = ode_outputs.states['x_w']
 
     # unsteady pressure computation here (the dmu_dt term)
     upp_mesh_dict = {
@@ -156,12 +182,24 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     }
     num_nodes = 1
     output_dict = {
+        'mesh': points,
         'mu': mu,
+        'x_w': x_w,
+        'mu_w': mu_w,
         'Cp_static': Cp_static,
         'ql': ql,
         'qm': qm,
         'qn': qn,
+        'AIC_mu': AIC_mu,
+        'AIC_sigma': AIC_sigma,
+        'AIC_mu_wake': AIC_mu_wake,
     }
+
+    if free_wake:
+        # output_dict['AIC_fw_mu'] = ode_outputs.profile_outputs['AIC_fw_mu']
+        output_dict['AIC_fw_sigma'] = ode_outputs.profile_outputs['AIC_fw_sigma']
+        # output_dict['AIC_fw_mu_w'] = ode_outputs.profile_outputs['AIC_fw_mu_w']
+
     output_dict = unsteady_post_processor(upp_mesh_dict, output_dict, mu, num_nodes, dt, nt, 
                                           compressibility=compressibility, rho=rho, constant_geometry=reuse_AIC, 
                                           ref_point=moment_ref, ref_area=ref_area, ref_chord=ref_chord, sos=sos)

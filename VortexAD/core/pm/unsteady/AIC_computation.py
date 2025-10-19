@@ -24,12 +24,16 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
 
         AIC_mu = csdl.Variable(shape=(num_nodes, num_tot_panels, num_tot_panels), value=0.)
         AIC_sigma = csdl.Variable(shape=AIC_mu.shape, value=0.)
+        batch_size_surf = batch_size
+        if batch_size is None:
+            batch_size_surf = num_tot_panels
         AIC_batch_func = csdl.experimental.batch_function(
             compute_aic_batched,
-            batch_size=batch_size,
+            # batch_size=batch_size,
+            batch_size=batch_size_surf,
             batch_dims=[1]+[None]*8
         )
-
+        print('===')
         start_j, stop_j = 0, 0
         for j, cell_type_j in enumerate(cell_types):
             num_cells_j = num_cells_per_type[j]
@@ -59,6 +63,7 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
                 BC=bc,
                 do_source=True,
             )
+            print(doublet_influence.shape)
 
             doublet_influence = doublet_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
             source_influence = source_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
@@ -67,7 +72,7 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
             AIC_sigma = AIC_sigma.set(csdl.slice[0, :, start_j:stop_j], source_influence)
 
             start_j += num_cells_j
-
+        # exit()
 
         # if bc == 'Dirichlet':
         #     AIC_mu, AIC_sigma = compute_AIC_Dirichlet(mesh_dict, eval_pt, do_source=True)
@@ -89,9 +94,13 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
 
         AIC_wake = csdl.Variable(shape=(num_nodes, num_tot_panels, num_wake_panels), value=0.)
 
+        batch_size_wake = batch_size
+        if batch_size is None:
+            batch_size_wake = num_tot_panels
         AIC_batch_func = csdl.experimental.batch_function(
             compute_aic_batched,
-            batch_size=batch_size,
+            # batch_size=batch_size,
+            batch_size=batch_size_wake,
             batch_dims=[1]+[None]*8
             # batch_dims=[None]+[1]*8
         )
@@ -235,7 +244,7 @@ def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, pa
             S_list, 
             mode=influence_mode
         )
-    
+    print(AIC_mu_vec.shape)
     if BC == 'Neumann': # do normal vector projections here
         pass
     if do_source:

@@ -38,7 +38,7 @@ default_input_dict = {
     'wake_mode': 'fixed',
 
     # partition size for linear system assembly
-    'partition_size': 1,
+    'partition_size': 1, # for full vectorization, set to None
 
     # GMRES linear system solve
     'iterative': False,
@@ -280,6 +280,7 @@ class PanelMethod(object):
             'TE_edges': self.TE_edges,
             'upper_TE_cells': self.upper_TE_cells,
             'lower_TE_cells': self.lower_TE_cells,
+            'wake_connectivity': self.wake_connectivity
         }
 
     def evaluate(self):
@@ -296,6 +297,8 @@ class PanelMethod(object):
 
         if not self.flow_properties_flag:
             self.setup_flow_properties()
+        
+        self.generate_wake_connectivity()
 
         self.__assemble_input_dict__()
 
@@ -410,6 +413,35 @@ class PanelMethod(object):
             plot_pressure_distribution(self.points_orig, TE_coloring, connectivity=combined_cells, interactive=True, top_view=False, cmap='rainbow')
 
         return self.TE_data
+    
+    def generate_wake_connectivity(self):
+        ns = len(self.TE_node_indices)
+        num_TE_edges = len(self.TE_edges)
+        TE_edges_zeroed = []
+        for i in range(num_TE_edges):
+            edge = self.TE_edges[i]
+            new_edge = []
+            for j in range(2):
+                ind = np.where(self.TE_node_indices == edge[j])[0][0]
+                new_edge.append(ind)
+            TE_edges_zeroed.append(tuple(new_edge))
+
+        if self.solver_mode == 'steady':
+            self.wake_connectivity = np.array([[
+                edge[0],
+                edge[0]+ns,
+                edge[1]+ns,
+                edge[1]
+            ] for edge in TE_edges_zeroed])
+
+        elif self.solver_mode == 'unsteady':
+            nt = self.options_dict['nt']
+            self.wake_connectivity = np.array([[[
+                edge[0] + i*ns,
+                edge[0] + (i+1)*ns,
+                edge[1] + (i+1)*ns,
+                edge[1] + i*ns,
+            ] for edge in TE_edges_zeroed] for i in range(nt-1)])
 
     # these functions are when we want to use the functions externally
     # this helps when doing optimization or using FFD to move a mesh
@@ -453,6 +485,16 @@ class PanelMethod(object):
         for cell_type in cell_types:
             combined_cells += self.cells[cell_type].tolist()
         plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=combined_cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap, camera=camera, screenshot=screenshot)
+
+    def plot_unsteady(self, mesh, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='panel_method'):
+        from VortexAD.utils.plotting.plot_unstructured import plot_wireframe
+        cell_types = self.cells.keys()
+        num_cells = np.sum([len(self.cells[cell_type]) for cell_type in cell_types])
+        combined_cells = []
+        for cell_type in cell_types:
+            combined_cells += self.cells[cell_type].tolist()
+
+        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, interactive=interactive, name=name)
     
     # def conduct_off_body_analysis(self, eval_pts):
     #     velocity = off_body_analysis(eval_pts)

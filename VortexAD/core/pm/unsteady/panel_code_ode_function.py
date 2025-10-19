@@ -58,12 +58,21 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
             new_edge.append(ind)
         TE_edges_zeroed.append(tuple(new_edge))
 
-    wake_connectivity = np.array([[[
-        edge[0] + i*ns,
-        edge[0] + (i+1)*ns,
-        edge[1] + (i+1)*ns,
-        edge[1] + i*ns,
-    ] for edge in TE_edges_zeroed] for i in range(nt-1)])
+    wake_connectivity = orig_mesh_dict['wake_connectivity']
+
+    # wake_connectivity = np.array([[[
+    #     edge[0] + i*ns,
+    #     edge[0] + (i+1)*ns,
+    #     edge[1] + (i+1)*ns,
+    #     edge[1] + i*ns,
+    # ] for edge in TE_edges_zeroed] for i in range(nt-1)])
+
+    # wake_connectivity = np.array([[[
+    #     edge[0] + i*ns,
+    #     edge[0] + (i+1)*ns,
+    #     edge[1] + (i+1)*ns,
+    #     edge[1] + i*ns,
+    # ] for i in range(nt-1)] for edge in TE_edges_zeroed])
 
     wake_mesh_dict = wake_geometry(num_nodes, orig_mesh_dict, x_w, wake_connectivity)
     wake_mesh_dict['wake_connectivity'] = wake_connectivity
@@ -99,12 +108,13 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
             batch_size=partition_size, 
             bc=BC,
             constant_geometry=reuse_AIC,
-        )[0]
+        )
     
     sigma = compute_source_strength(mesh_dict, num_nodes, num_panels, mesh_mode, reuse_AIC)
 
     # solve linear system here: A\mu = -B\sigma - C\mu_w
     RHS = -csdl.matvec(AIC_sigma[0,:], sigma[0,:]) - csdl.matvec(AIC_mu_wake[0,:], mu_w[0,:])
+    # RHS = -csdl.matvec(AIC_sigma[0,:], sigma[0,:])
 
     mu = csdl.solve_linear(AIC_mu[0,:], RHS)
     mu = mu.expand((1,) + mu.shape, 'i->ai')
@@ -113,12 +123,11 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     output_dict = steady_pressure_computation(mesh_dict, mu, sigma, num_nodes, reuse_AIC, Cp_cutoff)
 
     # free wake computation 
-    wake_vel = compute_wake_velocity(mesh_dict, wake_mesh_dict, partition_size, mu, sigma, mu_w, free_wake=free_wake, vc=vc)
+    wake_vel, wake_vel_vars = compute_wake_velocity(mesh_dict, wake_mesh_dict, partition_size, mu, sigma, mu_w, free_wake=free_wake, vc=vc)
 
     # compute derivatives
     upper_TE_cell_ind = mesh_dict['upper_TE_cells']
     lower_TE_cell_ind = mesh_dict['lower_TE_cells']
-    wake_connectivity = wake_mesh_dict['wake_connectivity']
     delta_mu_TE = mu[:,upper_TE_cell_ind] - mu[:,lower_TE_cell_ind]
     dxw_dt = csdl.Variable(value=np.zeros((num_nodes, tot_wake_pts, 3)))
     dmuw_dt = csdl.Variable(value=np.zeros((num_nodes,) + wake_connectivity.shape[:-1]))
@@ -134,15 +143,19 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
         (mu_wake[:-1,:]-mu_wake[1:,:])/dt
     )
     
-    x_w_grid = x_w.reshape((ns, nt, 3))
-    wake_vel_grid = wake_vel.reshape((ns, nt, 3))
+    x_w_grid = x_w.reshape((nt, ns, 3))
+    wake_vel_grid = wake_vel.reshape((nt, ns, 3))
 
     dxw_dt = wake_vel 
 
     dxw_dt_grid = csdl.Variable(value=np.zeros(x_w_grid.shape))
+    # dxw_dt_grid = dxw_dt_grid.set(
+    #     csdl.slice[:,:,0],
+    #     wake_vel_grid[:,:,0] + (TE[0] - x_w_grid[:,:,0])/dt
+    # )
     dxw_dt_grid = dxw_dt_grid.set(
-        csdl.slice[:,1:,:],
-        wake_vel_grid[:,1:,:] + (x_w_grid[:,:-1,:] - x_w_grid[:,1:,:])/dt
+        csdl.slice[1:,:,:],
+        wake_vel_grid[1:,:,:] + (x_w_grid[:-1,:,:] - x_w_grid[1:,:,:])/dt
     )
 
     dmuw_dt = dmuw_dt.reshape((tot_wake_panels,))
@@ -159,6 +172,14 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
         'ql': output_dict['ql'],
         'qm': output_dict['qm'],
         'qn': output_dict['qn'],
+
+        'AIC_mu': AIC_mu,
+        'AIC_sigma': AIC_sigma,
+        'AIC_mu_wake': AIC_mu_wake,
     }
+
+    if free_wake:
+        for key in wake_vel_vars:
+            outputs[key] = wake_vel_vars[key]
 
     return outputs, d_dt

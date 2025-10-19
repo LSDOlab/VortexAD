@@ -2,7 +2,6 @@ import numpy as np
 import csdl_alpha as csdl
 
 def wake_geometry(num_nodes, mesh_dict, wake_points, wake_connectivity):
-    mesh = mesh_dict['points']
     num_wake_pts = wake_points.shape[1]
     nt = wake_connectivity.shape[0]+1
     nc_w = nt
@@ -58,7 +57,7 @@ def wake_geometry(num_nodes, mesh_dict, wake_points, wake_connectivity):
     D2 = p4-p2
 
     D1D2_cross = csdl.cross(D1, D2, axis=2)
-    D1D2_cross_norm = csdl.norm(D1D2_cross, axes=(2,))
+    D1D2_cross_norm = csdl.norm(D1D2_cross, axes=(2,)) + 1.e-12
     panel_area = D1D2_cross_norm/2.
     wake_mesh_dict['panel_area'] = panel_area
 

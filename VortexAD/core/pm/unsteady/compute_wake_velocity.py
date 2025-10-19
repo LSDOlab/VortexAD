@@ -21,11 +21,20 @@ def compute_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w
     wake_vel = TE_vel.expand((1, num_TE_pts, int(num_wake_pts/num_TE_pts), 3), 'ijk->ijak')
     wake_vel = wake_vel.reshape((1, num_wake_pts, 3))
 
+    wake_vel_vars = {}
+
     if free_wake:
-        ind_vel = compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w, vc)
+        ind_vel, free_wake_vars = compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w, vc)
         ind_vel = ind_vel.reshape((1, num_wake_pts, 3))
         wake_vel = wake_vel + ind_vel
-    return wake_vel
+
+        wake_vel_vars = {
+            # 'AIC_fw_mu': free_wake_vars['AIC_fw_mu'],
+            'AIC_fw_sigma': free_wake_vars['AIC_fw_sigma'],
+            # 'AIC_fw_mu_w': free_wake_vars['AIC_fw_mu_w'],
+        }
+
+    return wake_vel, wake_vel_vars
 
 def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w, vc):
     x_w = wake_mesh_dict['wake_mesh']
@@ -41,9 +50,14 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
     num_cells_per_type = [len(cell_adjacency_types[cell_type]) for cell_type in cell_types]
     num_tot_panels = sum(num_cells_per_type)
 
+    batch_size_surf = batch_size
+    if batch_size is None:
+        batch_size_surf = num_wake_pts
+
     surf_induced_vel_batch_func = csdl.experimental.batch_function(
         surf_induced_vel_batched,
-        batch_size=batch_size,
+        # batch_size=batch_size,
+        batch_size=batch_size_surf,
         batch_dims=[1]+[None]*11
     )
 
@@ -52,6 +66,7 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
     start_j, stop_j = 0, 0
     doublet_ind_vel_list = []
     source_ind_vel_list = []
+    AIC_sigma_list = []
     for j, cell_type_j in enumerate(cell_types):
         num_cells_j = num_cells_per_type[j]
         stop_j += num_cells_j
@@ -70,7 +85,7 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
         mu_cell_type = mu[:,start_j:stop_j]
         sigma_cell_type = sigma[:,start_j:stop_j]
 
-        doublet_ind_vel, source_ind_vel = surf_induced_vel_batch_func(
+        doublet_ind_vel, source_ind_vel, AIC_sigma = surf_induced_vel_batch_func(
             x_w, 
             coll_point,
             panel_corners,
@@ -84,17 +99,26 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
             sigma_cell_type,
             vc
         )
+        # print('===')
+        # print(AIC_sigma.shape)
+        # print(doublet_ind_vel.shape)
         doublet_ind_vel_list.append(doublet_ind_vel)
         source_ind_vel_list.append(source_ind_vel)
+        AIC_sigma_list.append(AIC_sigma.reshape((1, num_wake_pts, num_cells_j, 3)))
         start_j += num_cells_j
-
+    # exit()
     doublet_ind_vel = sum(doublet_ind_vel_list)
     source_ind_vel = sum(source_ind_vel_list)
+    AIC_sigma = sum(AIC_sigma_list)
 
+    batch_size_wake = batch_size
+    if batch_size is None:
+        batch_size_wake = num_wake_pts
 
     wake_induced_vel_batch_func = csdl.experimental.batch_function(
         wake_induced_vel_batched,
-        batch_size=batch_size,
+        # batch_size=batch_size,
+        batch_size=batch_size_wake,
         batch_dims=[1]+[None]*3
     )
 
@@ -107,9 +131,17 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
         vc
     )
 
-    ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel
+    # ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel
+    ind_vel = doublet_ind_vel + wake_ind_vel # NOTE: source velocity produces nan
+    # ind_vel = source_ind_vel # NOTE: source velocity produces nan
 
-    return ind_vel
+    wake_vel_vars = {
+        # 'AIC_fw_mu': free_wake_vars['AIC_fw_mu'],
+        'AIC_fw_sigma': AIC_sigma,
+        # 'AIC_fw_mu_w': free_wake_vars['AIC_fw_mu_w'],
+    }
+
+    return ind_vel, wake_vel_vars
 
 def surf_induced_vel_batched(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
                         panel_normal, S_j, SL_j, SM_j, mu, sigma, vc):
@@ -226,7 +258,7 @@ def surf_induced_vel_batched(coll_point, panel_center, panel_corners, panel_x_di
     # doublet_ind_vel = csdl.matvec(AIC_mu, mu)
     doublet_ind_vel = csdl.einsum(AIC_mu, mu, action='ijkl,ik->ijl')
 
-    return doublet_ind_vel, source_ind_vel
+    return doublet_ind_vel, source_ind_vel, AIC_sigma
 
 def wake_induced_vel_batched(coll_point, panel_corners, mu_w, vc):
     num_nodes = coll_point.shape[0]
