@@ -90,7 +90,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     # # vp.interactive().close()
     # vp.close_window()
 
-def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_connectivity, wake_form, 
+def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_connectivity, wake_form, TE_indices,
                    interactive=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio'):
     vedo.settings.default_backend = 'vtk'
     nt = surface_data.shape[0]
@@ -153,6 +153,12 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
 
                 wake_conn_lines = np.concatenate((wake_conn_iter[:,:,:2], wake_conn_iter[:,:,2:][:,:,::-1]), axis=1)
                 # turn this into a list of tuples and then a set 
+                line_pts = []
+                ns = len(TE_indices)
+                for j in range(i):
+                    # line_pts.extend([[ind*j, ind*(j+1)] for ind in TE_indices])
+                    line_pts.extend([[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices])
+                vps = Lines(line_pts, c='black')
 
             vp += vps
             vp += __doc__

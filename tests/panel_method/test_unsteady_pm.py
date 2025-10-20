@@ -35,7 +35,7 @@ input_dict = {
     'solver_mode': 'unsteady',
     'free_wake': True,
     'dt': 0.1,
-    'nt': 6,
+    'nt': 30,
 }
 
 panel_method = PanelMethod(
@@ -53,7 +53,7 @@ pm_outputs = [
     'x_w',
     'mu_w',
     'mesh',
-    'AIC_fw_sigma',
+    # 'AIC_fw_sigma',
 ]
 
 panel_method.declare_outputs(pm_outputs)
@@ -72,13 +72,13 @@ mu = outputs['mu']
 x_w = outputs['x_w']
 mu_w = outputs['mu_w']
 mesh = outputs['mesh']
-AIC_fw_sigma = outputs['AIC_fw_sigma']
+# AIC_fw_sigma = outputs['AIC_fw_sigma']
 
 # csdl-jax stuff
 inputs = [pitch]
 # outputs = [CL, CDi, CP, mu, AIC_mu_wake, x_w]
-# outputs = [CL, CDi, CP, mu, x_w, mu_w, mesh]
-outputs = [CL, CDi, CP, mu, x_w, mu_w, mesh, AIC_fw_sigma]
+outputs = [CL, CDi, CP, mu, x_w, mu_w, mesh]
+# outputs = [CL, CDi, CP, mu, x_w, mu_w, mesh, AIC_fw_sigma]
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -116,6 +116,6 @@ if True:
         x_w_val, 
         mu_val, 
         mu_w_val,
-        # wake_form='lines', # grid or lines
+        wake_form='lines', # grid or lines
         interactive=False, 
         name='pw_sim')

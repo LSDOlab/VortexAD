@@ -418,6 +418,7 @@ class PanelMethod(object):
         ns = len(self.TE_node_indices)
         num_TE_edges = len(self.TE_edges)
         TE_edges_zeroed = []
+        TE_nodes_zeroed_dup = []
         for i in range(num_TE_edges):
             edge = self.TE_edges[i]
             new_edge = []
@@ -425,6 +426,8 @@ class PanelMethod(object):
                 ind = np.where(self.TE_node_indices == edge[j])[0][0]
                 new_edge.append(ind)
             TE_edges_zeroed.append(tuple(new_edge))
+            TE_nodes_zeroed_dup.extend(new_edge)
+        self.TE_nodes_zeroed = list(set(TE_nodes_zeroed_dup))
 
         if self.solver_mode == 'steady':
             self.wake_connectivity = np.array([[
@@ -494,7 +497,7 @@ class PanelMethod(object):
         for cell_type in cell_types:
             combined_cells += self.cells[cell_type].tolist()
 
-        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, interactive=interactive, name=name)
+        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, self.TE_nodes_zeroed, interactive=interactive, name=name)
     
     # def conduct_off_body_analysis(self, eval_pts):
     #     velocity = off_body_analysis(eval_pts)
