@@ -91,7 +91,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     # vp.close_window()
 
 def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_connectivity, wake_form, TE_indices,
-                   interactive=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio'):
+                   interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio'):
     vedo.settings.default_backend = 'vtk'
     nt = surface_data.shape[0]
     axs = Axes(
@@ -169,8 +169,9 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
         # vp.show(axs, elevation=-60, azimuth=-90, roll=90,
         #         axes=False, interactive=False, zoom=True)  # render the scene
         1
-
-        if side_view:
+        if camera:
+            vp.show(axs, camera=camera, axes=False, interactive=interactive)  # render the scene
+        elif side_view:
             vp.show(axs, elevation=-90, azimuth=0, roll=0,
                     axes=False, interactive=interactive)  # render the scene
         else:

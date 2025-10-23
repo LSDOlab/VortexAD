@@ -41,7 +41,7 @@ $ git checkout dev_custom
 $ pip install -e .
 ``` -->
 
-`VortexAD` automatically installs other software tools to aid with plotting and reading complex grid & mesh files, described below.
+`VortexAD` relies on a set of software tools (which are automatically installed) to aid with plotting and reading complex grid & mesh files, described below. 
 
 | Package | Description |
 |:---|:---|
@@ -54,6 +54,15 @@ $ pip install -e .
 ```{note}
 `VortexAD` automatically installs the `dev_custom` branch of `csdl`, as some of the `csdl` developments have not been pushed to the `main` branch. This branch of CSDL also requires `networkx`, which is automatically installed as well.
 ```
+
+```{warning}
+Due to version issues, `VortexAD` does not automatically install the correct branch of `csdl`. We are actively resolving this issue. For now, after installing `VortexAD`, please run the following in the command line:
+
+```sh
+pip install git+https://github.com/LSDOlab/csdl_alpha.git@dev_custom
+```
+
+
 
 <!-- ### Optimization
 To use VortexAD for optimization, a set of additional packages are required.

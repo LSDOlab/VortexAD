@@ -19,6 +19,13 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     moment_ref          = solver_options_dict['moment_reference']
     drag_type           = solver_options_dict['drag_type']
     free_wake           = solver_options_dict['free_wake']
+    ROM                 = solver_options_dict['ROM']
+
+    solver_options_dict['ROM_orig'] = ROM # saving original
+    if ROM: # NOTE: this only works for precomputed basis vectors with POD
+        # for Krylov-subspace, we will need to adjust this
+        UT, U = ROM[0], ROM[1]
+        ROM_shape = UT.shape
 
     if isinstance(rho, float):
         rho = csdl.Variable(value=np.array([rho]))
@@ -57,6 +64,14 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         # )
         orig_mesh_dict['points'] = ozone_vars.dynamic_parameters['points']
         orig_mesh_dict['nodal_velocity'] = ozone_vars.dynamic_parameters['nodal_velocity']
+        if ROM:
+            if len(ROM_shape) == 3: # time-varying basis
+                ROM_list_ozone = [
+                    ozone_vars.dynamic_parameters['UT'][0,:],
+                    ozone_vars.dynamic_parameters['U'][0,:]
+                ]
+                solver_options_dict['ROM'] = ROM_list_ozone
+
         outputs, d_dt = panel_code_ode_function(
             orig_mesh_dict,
             solver_options_dict,
@@ -79,6 +94,7 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         ql = outputs['ql']
         qm = outputs['qm']
         qn = outputs['qn']
+        wake_vel = outputs['wake_vel']
         # coll_pt_velocity = outputs['coll_pt_velocity']
         # planform_area = outputs['planform_area']
         AIC_mu = outputs['AIC_mu']
@@ -94,6 +110,7 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         ozone_vars.profile_outputs['ql'] = ql
         ozone_vars.profile_outputs['qm'] = qm
         ozone_vars.profile_outputs['qn'] = qn
+        ozone_vars.profile_outputs['wake_vel'] = wake_vel
         # ozone_vars.profile_outputs['coll_pt_velocity'] = coll_pt_velocity
         # ozone_vars.profile_outputs['planform_area'] = planform_area
 
@@ -101,10 +118,10 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         ozone_vars.profile_outputs['AIC_sigma'] = AIC_sigma
         ozone_vars.profile_outputs['AIC_mu_wake'] = AIC_mu_wake
 
-        if free_wake:
-            # ozone_vars.profile_outputs['AIC_fw_mu'] = AIC_mu
-            ozone_vars.profile_outputs['AIC_fw_sigma'] = outputs['AIC_fw_sigma']
-            # ozone_vars.profile_outputs['AIC_fw_mu_w'] = AIC_mu_wake
+        # if free_wake:
+        #     # ozone_vars.profile_outputs['AIC_fw_mu'] = AIC_mu
+        #     ozone_vars.profile_outputs['AIC_fw_sigma'] = outputs['AIC_fw_sigma']
+        #     # ozone_vars.profile_outputs['AIC_fw_mu_w'] = AIC_mu_wake
 
 
     TE_node_indices = orig_mesh_dict['TE_node_indices']
@@ -122,7 +139,7 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         x_w_0 = TE_pts.reshape((np.prod(TE_pts.shape[:2]),3))
         # x_w_0_shift = csdl.Variable(value=np.zeros(x_w_0.shape))
         # x_w_0_shift = x_w_0_shift.set(
-        #     csdl.slice[:,0], value=0.001
+        #     csdl.slice[:,0], value=0.01
         # )
         # x_w_0 = x_w_0 + x_w_0_shift
 
@@ -142,6 +159,10 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
 
     ode_problem.add_dynamic_parameter('points', orig_mesh_dict['points'])
     ode_problem.add_dynamic_parameter('nodal_velocity', orig_mesh_dict['nodal_velocity'])
+    if ROM:
+        if len(ROM_shape) == 3: # time-varying basis
+            ode_problem.add_dynamic_parameter('U', U)
+            ode_problem.add_dynamic_parameter('UT', UT)
 
     step_vector = np.ones(nt-1)*dt
     ode_problem.set_timespan(ozone.timespans.StepVector(start=0., step_vector=step_vector))
@@ -162,6 +183,7 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     ql = ode_outputs.profile_outputs['ql']
     qm = ode_outputs.profile_outputs['qm']
     qn = ode_outputs.profile_outputs['qn']
+    wake_vel = ode_outputs.profile_outputs['wake_vel']
     # planform_area = ode_outputs.profile_outputs['planform_area']
     AIC_mu = ode_outputs.profile_outputs['AIC_mu']
     AIC_sigma = ode_outputs.profile_outputs['AIC_sigma']
@@ -190,15 +212,16 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         'ql': ql,
         'qm': qm,
         'qn': qn,
+        'wake_vel': wake_vel,
         'AIC_mu': AIC_mu,
         'AIC_sigma': AIC_sigma,
         'AIC_mu_wake': AIC_mu_wake,
     }
 
-    if free_wake:
-        # output_dict['AIC_fw_mu'] = ode_outputs.profile_outputs['AIC_fw_mu']
-        output_dict['AIC_fw_sigma'] = ode_outputs.profile_outputs['AIC_fw_sigma']
-        # output_dict['AIC_fw_mu_w'] = ode_outputs.profile_outputs['AIC_fw_mu_w']
+    # if free_wake:
+    #     # output_dict['AIC_fw_mu'] = ode_outputs.profile_outputs['AIC_fw_mu']
+    #     output_dict['AIC_fw_sigma'] = ode_outputs.profile_outputs['AIC_fw_sigma']
+    #     # output_dict['AIC_fw_mu_w'] = ode_outputs.profile_outputs['AIC_fw_mu_w']
 
     output_dict = unsteady_post_processor(upp_mesh_dict, output_dict, mu, num_nodes, dt, nt, 
                                           compressibility=compressibility, rho=rho, constant_geometry=reuse_AIC, 

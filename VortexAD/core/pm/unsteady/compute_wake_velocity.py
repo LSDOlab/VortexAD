@@ -27,6 +27,7 @@ def compute_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w
         ind_vel, free_wake_vars = compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w, vc)
         ind_vel = ind_vel.reshape((1, num_wake_pts, 3))
         wake_vel = wake_vel + ind_vel
+        # wake_vel = wake_vel
 
         wake_vel_vars = {
             # 'AIC_fw_mu': free_wake_vars['AIC_fw_mu'],
@@ -109,7 +110,7 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
     # exit()
     doublet_ind_vel = sum(doublet_ind_vel_list)
     source_ind_vel = sum(source_ind_vel_list)
-    AIC_sigma = sum(AIC_sigma_list)
+    # AIC_sigma = sum(AIC_sigma_list)
 
     batch_size_wake = batch_size
     if batch_size is None:
@@ -119,7 +120,7 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
         wake_induced_vel_batched,
         # batch_size=batch_size,
         batch_size=batch_size_wake,
-        batch_dims=[1]+[None]*3
+        batch_dims=[1]+[None]*2
     )
 
     panel_corners_w = wake_mesh_dict['panel_corners'] # (nn, np_w, 4, 3)
@@ -128,11 +129,11 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
         x_w, 
         panel_corners_w,
         mu_w,
-        vc
+        vc=vc
     )
 
-    # ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel
-    ind_vel = doublet_ind_vel + wake_ind_vel # NOTE: source velocity produces nan
+    ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel
+    # ind_vel = wake_ind_vel # NOTE: source velocity produces nan
     # ind_vel = source_ind_vel # NOTE: source velocity produces nan
 
     wake_vel_vars = {
@@ -186,7 +187,7 @@ def surf_induced_vel_batched(coll_point, panel_center, panel_corners, panel_x_di
     P_JK = coll_point_exp_vec - coll_point_j_exp_vec # RcJ - RcK
     sum_ind = len(a.shape) - 1
 
-    A = csdl.norm(a, axes=(sum_ind,)) # norm of distance from CP of i to corners of j
+    A = csdl.norm(a+1.e-12, axes=(sum_ind,)) # norm of distance from CP of i to corners of j
     AL = csdl.sum(a*panel_x_dir_exp_vec, axes=(sum_ind,))
     AM = csdl.sum(a*panel_y_dir_exp_vec, axes=(sum_ind,)) # m-direction projection 
     PN = csdl.sum(P_JK*panel_normal_exp_vec, axes=(sum_ind,)) # normal projection of CP
@@ -261,6 +262,8 @@ def surf_induced_vel_batched(coll_point, panel_center, panel_corners, panel_x_di
     return doublet_ind_vel, source_ind_vel, AIC_sigma
 
 def wake_induced_vel_batched(coll_point, panel_corners, mu_w, vc):
+    # print(vc)
+    # exit()
     num_nodes = coll_point.shape[0]
     num_eval_pts = coll_point.shape[1]
     num_induced_pts = panel_corners.shape[1]
@@ -292,102 +295,3 @@ def wake_induced_vel_batched(coll_point, panel_corners, mu_w, vc):
     wake_doublet_ind_vel = csdl.einsum(AIC_mu_wake, mu_w, action='ijkl,ik->ijl')
 
     return wake_doublet_ind_vel
-
-def free_wake_batched_function(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
-                        panel_normal, S_j, SL_j, SM_j, mode='doublet'):
-    num_nodes = coll_point.shape[0]
-    num_eval_pts = coll_point.shape[1]
-    num_induced_pts = panel_center.shape[1]
-    num_interactions = num_eval_pts*num_induced_pts
-    num_corners = panel_corners.shape[2]
-
-    expanded_shape = (num_nodes, num_eval_pts, num_induced_pts, num_corners, 3)
-    vectorized_shape = (num_nodes, num_interactions, num_corners, 3)
-
-    # ============ expanding across columns ============
-    coll_point_exp = csdl.expand(coll_point, expanded_shape, 'ijk->ijabk')
-    coll_point_exp_vec = coll_point_exp.reshape(vectorized_shape)
-
-    # ============ expanding across rows ============
-    coll_point_j_exp = csdl.expand(panel_center, expanded_shape, 'ijk->iajbk')
-    coll_point_j_exp_vec = coll_point_j_exp.reshape(vectorized_shape)
-
-    panel_corners_exp = csdl.expand(panel_corners, expanded_shape, 'ijkl->iajkl')
-    panel_corners_exp_vec = panel_corners_exp.reshape(vectorized_shape)
-
-    panel_x_dir_exp = csdl.expand(panel_x_dir, expanded_shape, 'ijk->iajbk')
-    panel_x_dir_exp_vec = panel_x_dir_exp.reshape(vectorized_shape)
-    panel_y_dir_exp = csdl.expand(panel_y_dir, expanded_shape, 'ijk->iajbk')
-    panel_y_dir_exp_vec = panel_y_dir_exp.reshape(vectorized_shape)
-    panel_normal_exp = csdl.expand(panel_normal, expanded_shape, 'ijk->iajbk')
-    panel_normal_exp_vec = panel_normal_exp.reshape(vectorized_shape)
-
-    S_j_exp = csdl.expand(S_j, expanded_shape[:-1] , 'ijk->iajk')
-    S_j_exp_vec = S_j_exp.reshape(vectorized_shape[:-1])
-
-    SL_j_exp = csdl.expand(SL_j, expanded_shape[:-1], 'ijk->iajk')
-    SL_j_exp_vec = SL_j_exp.reshape(vectorized_shape[:-1])
-
-    SM_j_exp = csdl.expand(SM_j, expanded_shape[:-1], 'ijk->iajk')
-    SM_j_exp_vec = SM_j_exp.reshape(vectorized_shape[:-1])
-
-    a = coll_point_exp_vec - panel_corners_exp_vec # Rc - Ri
-    P_JK = coll_point_exp_vec - coll_point_j_exp_vec # RcJ - RcK
-    sum_ind = len(a.shape) - 1
-
-    A = csdl.norm(a, axes=(sum_ind,)) # norm of distance from CP of i to corners of j
-    AL = csdl.sum(a*panel_x_dir_exp_vec, axes=(sum_ind,))
-    AM = csdl.sum(a*panel_y_dir_exp_vec, axes=(sum_ind,)) # m-direction projection 
-    PN = csdl.sum(P_JK*panel_normal_exp_vec, axes=(sum_ind,)) # normal projection of CP
-    # print(A.shape)
-    B = csdl.Variable(shape=A.shape, value=0.)
-    B = B.set(csdl.slice[:,:,:-1], value=A[:,:,1:])
-    B = B.set(csdl.slice[:,:,-1], value=A[:,:,0])
-
-    BL = csdl.Variable(shape=AL.shape, value=0.)
-    BL = BL.set(csdl.slice[:,:,:-1], value=BL[:,:,1:])
-    BL = BL.set(csdl.slice[:,:,-1], value=BL[:,:,0])
-
-    BM = csdl.Variable(shape=AM.shape, value=0.)
-    BM = BM.set(csdl.slice[:,:,:-1], value=AM[:,:,1:])
-    BM = BM.set(csdl.slice[:,:,-1], value=AM[:,:,0])
-
-    A1 = AM*SL_j_exp_vec - AL*SM_j_exp_vec
-
-    A_list = [A[:,:,ind] for ind in range(num_corners)]
-    AM_list = [AM[:,:,ind] for ind in range(num_corners)]
-    B_list = [B[:,:,ind] for ind in range(num_corners)]
-    BM_list = [BM[:,:,ind] for ind in range(num_corners)]
-    SL_list = [SL_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-    SM_list = [SM_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-    A1_list = [A1[:,:,ind] for ind in range(num_corners)]
-    PN_list = [PN[:,:,ind] for ind in range(num_corners)]
-    S_list = [S_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-
-    if mode == 'source':
-        AIC_vec = compute_source_influence_new(
-            A_list, 
-            AM_list, 
-            B_list, 
-            BM_list, 
-            SL_list, 
-            SM_list, 
-            A1_list, 
-            PN_list, 
-            S_list,
-            mode='velocity'
-        )
-
-    elif mode == 'doublet':
-        AIC_vec = compute_vortex_line_ind_vel(
-            A_list, 
-            AM_list, 
-            B_list, 
-            BM_list, 
-            SL_list, 
-            SM_list, 
-            A1_list, 
-            PN_list, 
-        )
-    
-    return AIC_vec

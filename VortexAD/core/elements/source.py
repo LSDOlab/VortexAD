@@ -199,7 +199,7 @@ def compute_source_influence_new(A, AM, B, BM, SL, SM, A1, PN, S, l=None, m=None
             # atan_term = 2*csdl.arctan(((RNUM**2 + DNOM**2)**0.5 - DNOM) / (RNUM+1.e-24)) # half angle formula
             atan_term = csdl.arctan2(RNUM, DNOM)
 
-            GL = (1/(S[i]+1.e-12)) * csdl.log((A[i]+B[i]+S[i])/(A[i]+B[i]-S[i]))
+            GL = (1/(S[i]+1.e-12)) * csdl.log((A[i]+B[i]+S[i])/(A[i]+B[i]-S[i]+1.e-6))
             # GL = (1/(S[i]+1.e-12)) * csdl.log((A[i]+B[i]+S[i])/(A[i]+B[i]-S[i]+1.e-6))
             
             side_velocity = GL * (SM[i]*l - SL[i]*m) + atan_term*n # Cjk is the atan term

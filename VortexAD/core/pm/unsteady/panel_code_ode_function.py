@@ -79,45 +79,44 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
 
     print('running pre-processing')
     if not reuse_AIC:
-        # points = orig_mesh_dict['points']
-        # orig_mesh_dict['points'] = points.reshape((1,) + points.shape)
-        # nodal_velocity = orig_mesh_dict['nodal_velocity']
-        # orig_mesh_dict['nodal_velocity'] = nodal_velocity.reshape((1,) + nodal_velocity.shape)
-
         mesh_dict = pre_processor(orig_mesh_dict, mode=mesh_mode, constant_geometry=reuse_AIC)
+    else:
+        mesh_dict = reuse_vars['mesh_dict']
 
-        # compute AIC if needed
+    sigma = compute_source_strength(mesh_dict, num_nodes, num_panels, mesh_mode, reuse_AIC)
 
-        AIC_matrices = AIC_computation(
-            mesh_dict, 
-            wake_mesh_dict,
-            batch_size=partition_size, 
-            bc=BC,
-            constant_geometry=reuse_AIC,
-        )
+    AIC_matrices = AIC_computation(
+        mesh_dict,
+        wake_mesh_dict,
+        batch_size=partition_size,
+        bc=BC,
+        ROM=ROM,
+        constant_geometry=reuse_AIC
+    )
+    if not reuse_AIC:
         AIC_mu = AIC_matrices[0]
         AIC_sigma = AIC_matrices[1]
         AIC_mu_wake = AIC_matrices[2]
     else:
-        mesh_dict = reuse_vars['mesh_dict']
         AIC_mu = reuse_vars['AIC_mu']
         AIC_sigma = reuse_vars['AIC_sigma']
-        AIC_mu_wake = AIC_computation(
-            mesh_dict, 
-            wake_mesh_dict,
-            batch_size=partition_size, 
-            bc=BC,
-            constant_geometry=reuse_AIC,
-        )
+        AIC_mu_wake = AIC_matrices[0]
+    # NOTE: with the ROMs, each of these matrices are of shape r*n, r being the reduced basis size
+    # (with the exception of AIC_mu_red, which is r*r)
+    # These are named the same way as the full-space ones for ease of reading the code
     
-    sigma = compute_source_strength(mesh_dict, num_nodes, num_panels, mesh_mode, reuse_AIC)
-
     # solve linear system here: A\mu = -B\sigma - C\mu_w
-    RHS = -csdl.matvec(AIC_sigma[0,:], sigma[0,:]) - csdl.matvec(AIC_mu_wake[0,:], mu_w[0,:])
-    # RHS = -csdl.matvec(AIC_sigma[0,:], sigma[0,:])
 
-    mu = csdl.solve_linear(AIC_mu[0,:], RHS)
-    mu = mu.expand((1,) + mu.shape, 'i->ai')
+    RHS = -csdl.matvec(AIC_sigma[0,:], sigma[0,:]) - csdl.matvec(AIC_mu_wake[0,:], mu_w[0,:])
+
+    if not ROM:
+        mu = csdl.solve_linear(AIC_mu[0,:], RHS)
+        mu = mu.expand((1,) + mu.shape, 'i->ai')
+    else:
+        UT, U = ROM[0], ROM[1]
+        mu_red = csdl.solve_linear(AIC_mu[0,:], RHS) # matrices account for reduced basis in ROM
+        mu = csdl.matvec(U, mu_red)
+        mu = mu.expand((1,) + mu.shape, 'i->ai')
 
     # steady pressure computation
     output_dict = steady_pressure_computation(mesh_dict, mu, sigma, num_nodes, reuse_AIC, Cp_cutoff)
@@ -141,6 +140,7 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     dmuw_dt = dmuw_dt.set(
         csdl.slice[0,1:,:],
         (mu_wake[:-1,:]-mu_wake[1:,:])/dt
+        # (mu_wake[1:,:]-mu_wake[:-1,:])/dt
     )
     
     x_w_grid = x_w.reshape((nt, ns, 3))
@@ -150,12 +150,14 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
 
     dxw_dt_grid = csdl.Variable(value=np.zeros(x_w_grid.shape))
     # dxw_dt_grid = dxw_dt_grid.set(
-    #     csdl.slice[:,:,0],
-    #     wake_vel_grid[:,:,0] + (TE[0] - x_w_grid[:,:,0])/dt
+        # csdl.slice[0,:,],
+        # wake_vel_grid[0,:,:] + (TE[0] - x_w_grid[0,:,:])/dt
+        # wake_vel_grid[0,:,:] + (x_w_grid[0,:,:] - TE[0])/dt
     # )
     dxw_dt_grid = dxw_dt_grid.set(
         csdl.slice[1:,:,:],
         wake_vel_grid[1:,:,:] + (x_w_grid[:-1,:,:] - x_w_grid[1:,:,:])/dt
+        # wake_vel_grid[1:,:,:] + (x_w_grid[1:,:,:] - x_w_grid[:-1,:,:])/dt
     )
 
     dmuw_dt = dmuw_dt.reshape((tot_wake_panels,))
@@ -176,6 +178,7 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
         'AIC_mu': AIC_mu,
         'AIC_sigma': AIC_sigma,
         'AIC_mu_wake': AIC_mu_wake,
+        'wake_vel': wake_vel
     }
 
     if free_wake:

@@ -11,6 +11,10 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
     AIC_list = []
     # wake AIC first
     coll_point_eval = mesh_dict['panel_center_mod']
+    if ROM: # column batching of base AIC for matvec product
+        batch_dims = [None]+[1]*8
+    elif not ROM: # traditional row batching
+        batch_dims = [1]+[None]*8
     if not constant_geometry:
         cells = mesh_dict['cell_point_indices'] # keys are cell types, entries are points for each cell
         cell_types = list(cells.keys())
@@ -22,8 +26,14 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
         lower_TE_cell_ind = mesh_dict['lower_TE_cells']
         num_wake_panels = wake_mesh_dict['num_panels']
 
-        AIC_mu = csdl.Variable(shape=(num_nodes, num_tot_panels, num_tot_panels), value=0.)
-        AIC_sigma = csdl.Variable(shape=AIC_mu.shape, value=0.)
+        if ROM:
+            basis_size = ROM[0].shape[0]
+            AIC_mu = csdl.Variable(shape=(num_nodes, basis_size, num_tot_panels), value=0.)
+            AIC_sigma = csdl.Variable(shape=(num_nodes, basis_size, num_tot_panels), value=0.)
+        else:
+            AIC_mu = csdl.Variable(shape=(num_nodes, num_tot_panels, num_tot_panels), value=0.)
+            AIC_sigma = csdl.Variable(shape=AIC_mu.shape, value=0.)
+
         batch_size_surf = batch_size
         if batch_size is None:
             batch_size_surf = num_tot_panels
@@ -31,7 +41,7 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
             compute_aic_batched,
             # batch_size=batch_size,
             batch_size=batch_size_surf,
-            batch_dims=[1]+[None]*8
+            batch_dims=batch_dims
         )
         print('===')
         start_j, stop_j = 0, 0
@@ -62,14 +72,23 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
                 SM,
                 BC=bc,
                 do_source=True,
+                ROM=ROM,
             )
-            print(doublet_influence.shape)
 
-            doublet_influence = doublet_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
-            source_influence = source_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
+            if not ROM:
 
+                doublet_influence = doublet_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
+                source_influence = source_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
+            
+            else:
+
+                doublet_influence = doublet_influence[:,0,:].T()
+                source_influence = source_influence[:,0,:].T()
+    
             AIC_mu = AIC_mu.set(csdl.slice[0, :, start_j:stop_j], doublet_influence)
             AIC_sigma = AIC_sigma.set(csdl.slice[0, :, start_j:stop_j], source_influence)
+            
+
 
             start_j += num_cells_j
         # exit()
@@ -78,6 +97,10 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
         #     AIC_mu, AIC_sigma = compute_AIC_Dirichlet(mesh_dict, eval_pt, do_source=True)
         # elif bc == 'Neumann':
         #     AIC_mu, AIC_sigma = compute_AIC_Neumann(mesh_dict, eval_pt, panel_normal, do_source=True)
+        if ROM:
+            U = ROM[1]
+            AIC_mu = csdl.matmat(AIC_mu[0], U).reshape((1, basis_size, basis_size))
+
         AIC_list.append(AIC_mu)
         AIC_list.append(AIC_sigma)
 
@@ -91,9 +114,10 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
         upper_TE_cell_ind = mesh_dict['upper_TE_cells']
         lower_TE_cell_ind = mesh_dict['lower_TE_cells']
         num_wake_panels = wake_mesh_dict['num_panels']
-
-        AIC_wake = csdl.Variable(shape=(num_nodes, num_tot_panels, num_wake_panels), value=0.)
-
+        if not ROM:
+            AIC_wake = csdl.Variable(shape=(num_nodes, num_tot_panels, num_wake_panels), value=0.)
+        else:
+            AIC_wake = csdl.Variable(shape=(num_nodes, basis_size, num_wake_panels), value=0.)
         batch_size_wake = batch_size
         if batch_size is None:
             batch_size_wake = num_tot_panels
@@ -101,7 +125,7 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
             compute_aic_batched,
             # batch_size=batch_size,
             batch_size=batch_size_wake,
-            batch_dims=[1]+[None]*8
+            batch_dims=batch_dims
             # batch_dims=[None]+[1]*8
         )
 
@@ -128,8 +152,14 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
             SM_w,
             BC=bc,
             do_source=False,
+            ROM=ROM,
         )
-        wake_doublet_influence = wake_doublet_influence_vec.reshape((1,num_tot_panels,num_wake_panels))
+        print(wake_doublet_influence_vec.shape)
+        # exit()
+        if not ROM:
+            wake_doublet_influence = wake_doublet_influence_vec.reshape((1,num_tot_panels,num_wake_panels))
+        else:
+            wake_doublet_influence = wake_doublet_influence_vec[:,0,:].T().reshape((1,basis_size,num_wake_panels))
         AIC_wake = wake_doublet_influence
         # AIC_wake = AIC_wake.set(csdl.slice[:,start_i:stop_i,:], wake_doublet_influence)
 
@@ -143,7 +173,7 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
     return AIC_list
 
 def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
-                        panel_normal, S_j, SL_j, SM_j, BC='Dirichlet', do_source=True):
+                        panel_normal, S_j, SL_j, SM_j, BC='Dirichlet', do_source=True, ROM=False):
     if BC == 'Dirichlet':
         influence_mode = 'potential'
     elif BC == 'Neumann':
@@ -247,6 +277,17 @@ def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, pa
     print(AIC_mu_vec.shape)
     if BC == 'Neumann': # do normal vector projections here
         pass
+
+
+    # ROM
+    if ROM:
+        UT, U = ROM[0], ROM[1]
+        AIC_mu_vec = csdl.matvec(UT, AIC_mu_vec[0,:])
+        AIC_mu_vec = AIC_mu_vec.reshape((1,) + AIC_mu_vec.shape)
+        if do_source:
+            AIC_sigma_vec = csdl.matvec(UT, AIC_sigma_vec[0,:])
+            AIC_sigma_vec = AIC_sigma_vec.reshape((1,) + AIC_sigma_vec.shape)
+
     if do_source:
         return AIC_mu_vec, AIC_sigma_vec
     else:

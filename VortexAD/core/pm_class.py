@@ -497,7 +497,7 @@ class PanelMethod(object):
         for cell_type in cell_types:
             combined_cells += self.cells[cell_type].tolist()
 
-        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, self.TE_nodes_zeroed, interactive=interactive, name=name)
+        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, self.TE_nodes_zeroed, interactive=interactive, camera=camera, name=name)
     
     # def conduct_off_body_analysis(self, eval_pts):
     #     velocity = off_body_analysis(eval_pts)
