@@ -68,6 +68,29 @@ def find_cell_adjacency(points, cells, radius=1.e-10):
 
     return points, cells, cell_adjacency, edges2cells, points2cells
 
+def find_wake_cell_adjacency(wake_cells):
+    wake_cells_shape = wake_cells.shape
+    nt_cells = wake_cells_shape[0] # in temporal (streamwise) direction
+    num_TE_cells = wake_cells_shape[1] # in TE (spanwise) direction
+    wake_cells_list = wake_cells.reshape((nt_cells*num_TE_cells,4)).tolist()
+    edges2cells = {}
+    for c, cell in enumerate(wake_cells_list):
+        cell = list(cell)
+        cell.append(cell[0])
+        edges = [(cell[i], cell[i+1]) for i in range(len(cell)-1)]
+
+        for edge in edges:
+            edge_rev = edge[::-1]
+            if edge in edges2cells.keys():
+                edges2cells[edge].append(c)
+            elif edge_rev in edges2cells.keys():
+                edges2cells[edge_rev].append(c)
+            else:
+                edges2cells[edge] = [c]
+
+    wake_cell_adjacency = {}
+    return edges2cells, wake_cell_adjacency
+
 def remove_duplicate_nodes(points, cells, radius=1.e-10):
     num_pts_orig = len(points)
 

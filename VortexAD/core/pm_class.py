@@ -2,7 +2,7 @@ import numpy as np
 import csdl_alpha as csdl
 import meshio
 
-from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency
+from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency, find_wake_cell_adjacency
 from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
 
 from VortexAD.core.pm.steady_panel_solver import steady_panel_solver
@@ -445,6 +445,9 @@ class PanelMethod(object):
                 edge[1] + (i+1)*ns,
                 edge[1] + i*ns,
             ] for edge in TE_edges_zeroed] for i in range(nt-1)])
+        
+        wake_cell_adjacency = find_wake_cell_adjacency(self.wake_connectivity)
+        self.edges2cells_w = wake_cell_adjacency[0]
 
     # these functions are when we want to use the functions externally
     # this helps when doing optimization or using FFD to move a mesh
@@ -497,7 +500,7 @@ class PanelMethod(object):
         for cell_type in cell_types:
             combined_cells += self.cells[cell_type].tolist()
 
-        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, self.TE_nodes_zeroed, interactive=interactive, camera=camera, name=name)
+        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, self.TE_nodes_zeroed, self.edges2cells_w, interactive=interactive, camera=camera, name=name)
     
     # def conduct_off_body_analysis(self, eval_pts):
     #     velocity = off_body_analysis(eval_pts)

@@ -12,37 +12,49 @@ recorder = csdl.Recorder(inline=False)
 recorder.start()
 
 # set up input dictionary
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_mixed.msh'# tri + quad
-# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_quad.msh'# quads ONLY
-# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine.stl' # triangles
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl' # triangles
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_quad.msh' # quad
-# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.stl' # triangles
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.msh' # quads?
-# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb.stl' # triangles
-# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb_quad.msh' # triangles
-
 pitch = csdl.Variable(value=np.array([5.]))
 # pitch = csdl.Variable(value=np.array([3.06]))
 
 nt = 30
-dt = csdl.Variable(value=0.25)
-dt = csdl.Variable(value=0.05)
+
+test_case = 'BWB'
+if test_case == 'NACA':
+    dt = csdl.Variable(value=0.05)
+    V_inf = 10
+    ref_area = 10.
+    mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl' # triangles
+    mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_quad.msh' # quad
+    # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.stl' # triangles
+    mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.msh' # quads?
+
+elif test_case == 'BWB':
+    dt = csdl.Variable(value=0.025)
+    Mach = 0.7
+    V_inf = Mach*340.3
+    ref_area = 525.
+    # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb.stl' # triangles
+    mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb_quad.msh' # triangles
+
+elif test_case == 'ONERA':
+    dt = csdl.Variable(value=0.05)
+    V_inf = 10
+    ref_area = 1.51499
+    mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_mixed.msh'# tri + quad
+    # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_quad.msh'# quads ONLY
+    # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine.stl' # triangles
+
 # dummy_ROM = np.einsum('i,jk->ijk', np.ones((nt,)), np.eye(1616, 15)) # time varying
 # dummy_ROM = np.eye(1616, 1616) # static
 
 # input dict
 input_dict = {
-    # 'Mach': 0.7,
-    'V_inf': 10,
+    'V_inf': V_inf,
     'alpha': pitch,
     'Cp cutoff': -3.,
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
-    # 'ref_area': 1.51499, 
-    # 'ref_area': 10., 
-    'ref_area': 525., 
-    # 'partition_size': 1,
-    'partition_size': None,
+    'ref_area': ref_area, 
+    'partition_size': 1,
+    # 'partition_size': None,
     'compressibility': True,
 
     'solver_mode': 'unsteady',
@@ -127,6 +139,7 @@ x_w_val = sim[x_w]
 mu_val = sim[mu]
 mu_w_val = sim[mu_w]
 
+vid_name = test_case
 if True:
     # panel_method.plot(CP_val, bounds=[-3,1])
     cam = dict(
@@ -145,4 +158,4 @@ if True:
         # camera=cam,
         wake_form='lines', # grid or lines
         interactive=False, 
-        name='asdf')
+        name=vid_name)

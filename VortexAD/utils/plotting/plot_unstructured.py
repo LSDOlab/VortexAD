@@ -90,7 +90,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     # # vp.interactive().close()
     # vp.close_window()
 
-def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_connectivity, wake_form, TE_indices,
+def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_connectivity, wake_form, TE_indices, wake_edges2cells,
                    interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio'):
     vedo.settings.default_backend = 'vtk'
     nt = surface_data.shape[0]
@@ -129,8 +129,8 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
         # vps = Mesh([np.reshape(mesh_points, (-1, 3)), connectivity], c=surface_color, alpha=1.).linecolor('black')
         mu_color = np.reshape(surface_data[i,:], (-1,1))
         
-        # vps.cmap(cmap, mu_color, on='cells', vmin=min_mu, vmax=max_mu)
-        vps.cmap(cmap, mu_color, on='cells')
+        vps.cmap(cmap, mu_color, on='cells', vmin=min_mu, vmax=max_mu)
+        # vps.cmap(cmap, mu_color, on='cells')
         vps.add_scalarbar()
         vp += vps
         vp += __doc__
@@ -146,19 +146,30 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
             #     vps.add_scalarbar()
             #     draw_scalarbar = False
             elif wake_form == 'lines':
-                wake_conn_iter = wake_connectivity[:i,:,:]
-                wake_conn_lines = np.concatenate((wake_conn_iter[:,:-1,:2], wake_conn_iter[:,-1:,2:][:,:,::-1]), axis=1)
 
-
-
-                wake_conn_lines = np.concatenate((wake_conn_iter[:,:,:2], wake_conn_iter[:,:,2:][:,:,::-1]), axis=1)
-                # turn this into a list of tuples and then a set 
                 line_pts = []
+                line_edges = []
                 ns = len(TE_indices)
+                # for loop
                 for j in range(i):
                     # line_pts.extend([[ind*j, ind*(j+1)] for ind in TE_indices])
                     line_pts.extend([[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices])
-                vps = Lines(line_pts, c='black')
+                    line_edges.extend([(ind+j*ns, ind+(j+1)*ns) for ind in TE_indices])
+                # # list comprehension (supposedly faster)
+                # line_pts = [[[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices] for j in range(i)]
+                edge_adj_cells = []
+                for edge in line_edges:
+                    if edge in wake_edges2cells.keys():
+                        adj_cells = wake_edges2cells[edge]
+                    elif edge[::-1] in wake_edges2cells.keys():
+                        adj_cells = wake_edges2cells[edge[::-1]]
+                    edge_adj_cells.append(adj_cells)
+                    # edge_color = np.average(wake_data[i,])
+                line_colors = [np.average(wake_data[i,ind]) for ind in edge_adj_cells]
+                # TODO: find way to make list generation more efficient
+                vps = Lines(line_pts, lw=3, c='black')
+                vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
+                # vps.add_scalarbar()
 
             vp += vps
             vp += __doc__
