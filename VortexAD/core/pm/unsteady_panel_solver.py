@@ -114,9 +114,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         # ozone_vars.profile_outputs['coll_pt_velocity'] = coll_pt_velocity
         # ozone_vars.profile_outputs['planform_area'] = planform_area
 
-        ozone_vars.profile_outputs['AIC_mu'] = AIC_mu
-        ozone_vars.profile_outputs['AIC_sigma'] = AIC_sigma
-        ozone_vars.profile_outputs['AIC_mu_wake'] = AIC_mu_wake
+        # ozone_vars.profile_outputs['AIC_mu'] = AIC_mu
+        # ozone_vars.profile_outputs['AIC_sigma'] = AIC_sigma
+        # ozone_vars.profile_outputs['AIC_mu_wake'] = AIC_mu_wake
 
         # if free_wake:
         #     # ozone_vars.profile_outputs['AIC_fw_mu'] = AIC_mu
@@ -137,11 +137,11 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         x_w_0 = csdl.expand(TE_pts[0,:], TE_pts.shape[1:], 'ij->aij')
     else:
         x_w_0 = TE_pts.reshape((np.prod(TE_pts.shape[:2]),3))
-        # x_w_0_shift = csdl.Variable(value=np.zeros(x_w_0.shape))
-        # x_w_0_shift = x_w_0_shift.set(
-        #     csdl.slice[:,0], value=0.01
-        # )
-        # x_w_0 = x_w_0 + x_w_0_shift
+        x_w_0_shift = csdl.Variable(value=np.zeros(x_w_0.shape))
+        x_w_0_shift = x_w_0_shift.set(
+            csdl.slice[:,0], value=0.01
+        )
+        x_w_0 = x_w_0 + x_w_0_shift
 
     # x_w_0 = csdl.Variable(value=np.zeros(nt, num_TE_pts)) 
     # x_w_0 = TE_pts # wake position initial condition
@@ -185,9 +185,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     qn = ode_outputs.profile_outputs['qn']
     wake_vel = ode_outputs.profile_outputs['wake_vel']
     # planform_area = ode_outputs.profile_outputs['planform_area']
-    AIC_mu = ode_outputs.profile_outputs['AIC_mu']
-    AIC_sigma = ode_outputs.profile_outputs['AIC_sigma']
-    AIC_mu_wake = ode_outputs.profile_outputs['AIC_mu_wake']
+    # AIC_mu = ode_outputs.profile_outputs['AIC_mu']
+    # AIC_sigma = ode_outputs.profile_outputs['AIC_sigma']
+    # AIC_mu_wake = ode_outputs.profile_outputs['AIC_mu_wake']
 
 
     mu_w = ode_outputs.states['mu_w']
@@ -213,9 +213,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         'qm': qm,
         'qn': qn,
         'wake_vel': wake_vel,
-        'AIC_mu': AIC_mu,
-        'AIC_sigma': AIC_sigma,
-        'AIC_mu_wake': AIC_mu_wake,
+        # 'AIC_mu': AIC_mu,
+        # 'AIC_sigma': AIC_sigma,
+        # 'AIC_mu_wake': AIC_mu_wake,
     }
 
     # if free_wake:

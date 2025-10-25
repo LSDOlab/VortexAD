@@ -14,7 +14,7 @@ default_mesh_path = current_directory + '/geometry/sample_meshes/naca0012_LE_TE_
 
 default_input_dict = {
     # flow properties
-    'V_inf': 10., # m/s
+    'V_inf': None, # m/s
     'Mach': None,
     'sos': 340.3, # m/s, 
     'alpha': None, # user can provide grid of velocities as well
@@ -197,13 +197,13 @@ class PanelMethod(object):
         else:
             num_nodes = V_inf.shape[0] # FIRST DIMENSION IS ALWAYS NUM NODES
             if not isinstance(V_inf, csdl.Variable):
-                V_inf = csdl.Variable(value=V_inf)
+                V_inf = csdl.Variable(value=-V_inf)
             # shape of (3,) means 3 flow instances with a x-velocity
             # shape of (1,3) implies 1 case with 3 velocity components
 
             if len(V_inf.shape) == 1:
                 V_vec = csdl.Variable(value=0., shape=(num_nodes,3))
-                V_vec = V_vec.set(csdl.slice[:,0], value=V_inf)
+                V_vec = V_vec.set(csdl.slice[:,0], value=-V_inf)
                 if alpha is None:
                     grid_velocity = csdl.expand(V_inf, grid_shape)
                 else:
@@ -216,7 +216,8 @@ class PanelMethod(object):
                     V_rot_mat = V_rot_mat.set(csdl.slice[:,0,2], value=-csdl.sin(pitch_rad))
 
                     V_vec_rot = csdl.einsum(V_rot_mat, V_vec, action='ijk,ik->ij')
-                    grid_velocity = csdl.expand(V_vec_rot, grid_shape, 'ij->iaj')
+                    print(grid_shape)
+                    grid_velocity = csdl.expand(V_vec_rot, (num_nodes,) + grid_shape, 'ij->iaj')
 
             elif V_inf.shape == (num_nodes, 3): # velocity 
                 grid_velocity = csdl.expand(V_inf, grid_shape, 'ij->iaj')
@@ -446,8 +447,8 @@ class PanelMethod(object):
                 edge[1] + i*ns,
             ] for edge in TE_edges_zeroed] for i in range(nt-1)])
         
-        wake_cell_adjacency = find_wake_cell_adjacency(self.wake_connectivity)
-        self.edges2cells_w = wake_cell_adjacency[0]
+            wake_cell_adjacency = find_wake_cell_adjacency(self.wake_connectivity)
+            self.edges2cells_w = wake_cell_adjacency[0]
 
     # these functions are when we want to use the functions externally
     # this helps when doing optimization or using FFD to move a mesh

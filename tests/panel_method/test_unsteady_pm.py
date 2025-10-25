@@ -17,7 +17,7 @@ pitch = csdl.Variable(value=np.array([5.]))
 
 nt = 30
 
-test_case = 'BWB'
+test_case = 'NACA'
 if test_case == 'NACA':
     dt = csdl.Variable(value=0.05)
     V_inf = 10
@@ -28,7 +28,8 @@ if test_case == 'NACA':
     mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.msh' # quads?
 
 elif test_case == 'BWB':
-    dt = csdl.Variable(value=0.025)
+    # dt = csdl.Variable(value=0.025)
+    dt = 0.025
     Mach = 0.7
     V_inf = Mach*340.3
     ref_area = 525.
@@ -53,12 +54,12 @@ input_dict = {
     'Cp cutoff': -3.,
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
     'ref_area': ref_area, 
-    'partition_size': 1,
-    # 'partition_size': None,
+    # 'partition_size': 1,
+    'partition_size': None,
     'compressibility': True,
 
     'solver_mode': 'unsteady',
-    'free_wake': True,
+    'free_wake': False,
     'dt': dt,
     'nt': nt,
     'core_radius': 1.e-3,
@@ -81,7 +82,7 @@ pm_outputs = [
     'mu_w',
     'mesh',
     # 'AIC_fw_sigma',
-    'wake_vel',
+    # 'wake_vel',
 ]
 
 panel_method.declare_outputs(pm_outputs)
@@ -101,7 +102,7 @@ x_w = outputs['x_w']
 mu_w = outputs['mu_w']
 mesh = outputs['mesh']
 # AIC_fw_sigma = outputs['AIC_fw_sigma']
-wake_vel = outputs['wake_vel']
+# wake_vel = outputs['wake_vel']
 
 # csdl-jax stuff
 inputs = [pitch]
@@ -139,8 +140,9 @@ x_w_val = sim[x_w]
 mu_val = sim[mu]
 mu_w_val = sim[mu_w]
 
-vid_name = test_case
-if True:
+wake_form = 'lines' # grid or lines
+vid_name = test_case + '_' + wake_form
+if False:
     # panel_method.plot(CP_val, bounds=[-3,1])
     cam = dict(
         pos=(-6.84211, -15.9857, 9.85074),
@@ -156,6 +158,6 @@ if True:
         mu_val, 
         mu_w_val,
         # camera=cam,
-        wake_form='lines', # grid or lines
+        wake_form=wake_form, # grid or lines
         interactive=False, 
         name=vid_name)

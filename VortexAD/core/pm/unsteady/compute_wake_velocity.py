@@ -132,9 +132,9 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
         vc=vc
     )
 
-    ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel
-    # ind_vel = wake_ind_vel # NOTE: source velocity produces nan
-    # ind_vel = source_ind_vel # NOTE: source velocity produces nan
+    # ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel
+    ind_vel = wake_ind_vel # NOTE: source velocity needs checking
+    # ind_vel = source_ind_vel # NOTE: source velocity needs checking
 
     wake_vel_vars = {
         # 'AIC_fw_mu': free_wake_vars['AIC_fw_mu'],
