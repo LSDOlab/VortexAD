@@ -195,6 +195,11 @@ def compute_doublet_influence_new(A, AM, B, BM, SL, SM, A1, PN, mode='potential'
         doublet_potential = mu/(4*np.pi) * sum(panel_segment_potential)
 
         return doublet_potential
-    
-def compute_doublet_velocity():
-    return
+
+    elif mode == 'velocity':
+        panel_segment_velocity = []
+        num_sides = len(A)
+        for i in range(num_sides):
+            panel_segment_velocity.append(asdf)
+        doublet_velocity = mu/(4*np.pi) * sum(panel_segment_velocity)
+        return doublet_velocity

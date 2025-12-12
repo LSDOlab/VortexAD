@@ -11,10 +11,11 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
     AIC_list = []
     # wake AIC first
     coll_point_eval = mesh_dict['panel_center_mod']
+    normal_vec_eval = mesh_dict['panel_normal']
     if ROM: # column batching of base AIC for matvec product
-        batch_dims = [None]+[1]*8
+        batch_dims = [None]*2+[1]*8
     elif not ROM: # traditional row batching
-        batch_dims = [1]+[None]*8
+        batch_dims = [1]*2+[None]*8
     if not constant_geometry:
         cells = mesh_dict['cell_point_indices'] # keys are cell types, entries are points for each cell
         cell_types = list(cells.keys())
@@ -61,35 +62,32 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
             # insert batched assembly function here
 
             doublet_influence, source_influence = AIC_batch_func(
-                coll_point_eval,
-                coll_point,
-                panel_corners,
-                panel_x_dir,
-                panel_y_dir,
-                panel_normal,
-                S,
-                SL,
-                SM,
+                coll_point_eval, # where potential or velocity are induced
+                normal_vec_eval, # where potential or velocity are induced
+                coll_point, # panel that induces potential or velocity
+                panel_corners, # panel that induces potential or velocity
+                panel_x_dir, # panel that induces potential or velocity
+                panel_y_dir, # panel that induces potential or velocity
+                panel_normal, # panel that induces potential or velocity
+                S, # panel that induces potential or velocity
+                SL, # panel that induces potential or velocity
+                SM, # panel that induces potential or velocity
                 BC=bc,
                 do_source=True,
                 ROM=ROM,
             )
 
             if not ROM:
-
                 doublet_influence = doublet_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
                 source_influence = source_influence[:,0,:].reshape((num_tot_panels, num_cells_j))
             
             else:
-
                 doublet_influence = doublet_influence[:,0,:].T()
                 source_influence = source_influence[:,0,:].T()
     
             AIC_mu = AIC_mu.set(csdl.slice[0, :, start_j:stop_j], doublet_influence)
             AIC_sigma = AIC_sigma.set(csdl.slice[0, :, start_j:stop_j], source_influence)
             
-
-
             start_j += num_cells_j
         # exit()
 
@@ -141,15 +139,16 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
         SM_w = wake_mesh_dict['SM']
 
         wake_doublet_influence_vec = AIC_batch_func(
-            coll_point_eval,
-            coll_point_w,
-            panel_corners_w,
-            panel_x_dir_w,
-            panel_y_dir_w,
-            panel_normal_w,
-            S_w,
-            SL_w,
-            SM_w,
+            coll_point_eval, # where potential or velocity are induced
+            normal_vec_eval, # where potential or velocity are induced
+            coll_point_w, # panel that induces potential or velocity
+            panel_corners_w, # panel that induces potential or velocity
+            panel_x_dir_w, # panel that induces potential or velocity
+            panel_y_dir_w, # panel that induces potential or velocity
+            panel_normal_w, # panel that induces potential or velocity
+            S_w, # panel that induces potential or velocity
+            SL_w, # panel that induces potential or velocity
+            SM_w, # panel that induces potential or velocity
             BC=bc,
             do_source=False,
             ROM=ROM,
@@ -172,12 +171,9 @@ def AIC_computation(mesh_dict, wake_mesh_dict, mode='unstructured', batch_size=N
     '''
     return AIC_list
 
-def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
+def compute_aic_batched(coll_point, normal_vec_eval, panel_center, panel_corners, panel_x_dir, panel_y_dir,
                         panel_normal, S_j, SL_j, SM_j, BC='Dirichlet', do_source=True, ROM=False):
-    if BC == 'Dirichlet':
-        influence_mode = 'potential'
-    elif BC == 'Neumann':
-        influence_mode = 'velocity'
+
     num_nodes = coll_point.shape[0]
     num_eval_pts = coll_point.shape[1]
     num_induced_pts = panel_center.shape[1]
@@ -237,17 +233,17 @@ def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, pa
 
     A1 = AM*SL_j_exp_vec - AL*SM_j_exp_vec
 
-    A_list = [A[:,:,ind] for ind in range(num_corners)]
-    AM_list = [AM[:,:,ind] for ind in range(num_corners)]
-    B_list = [B[:,:,ind] for ind in range(num_corners)]
-    BM_list = [BM[:,:,ind] for ind in range(num_corners)]
-    SL_list = [SL_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-    SM_list = [SM_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-    A1_list = [A1[:,:,ind] for ind in range(num_corners)]
-    PN_list = [PN[:,:,ind] for ind in range(num_corners)]
-    S_list = [S_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-
     if BC == 'Dirichlet':
+        A_list = [A[:,:,ind] for ind in range(num_corners)]
+        AM_list = [AM[:,:,ind] for ind in range(num_corners)]
+        B_list = [B[:,:,ind] for ind in range(num_corners)]
+        BM_list = [BM[:,:,ind] for ind in range(num_corners)]
+        SL_list = [SL_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+        SM_list = [SM_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+        A1_list = [A1[:,:,ind] for ind in range(num_corners)]
+        PN_list = [PN[:,:,ind] for ind in range(num_corners)]
+        S_list = [S_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+
         AIC_mu_vec = compute_doublet_influence_new(
             A_list, 
             AM_list, 
@@ -259,25 +255,88 @@ def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, pa
             PN_list, 
             mode='potential'
         )
+        if do_source:
+            AIC_sigma_vec = compute_source_influence_new(
+                A_list, 
+                AM_list, 
+                B_list, 
+                BM_list, 
+                SL_list, 
+                SM_list, 
+                A1_list, 
+                PN_list, 
+                S_list, 
+                mode='potential'
+            )
     elif BC == 'Neumann':
-        pass
-    if do_source:
-        AIC_sigma_vec = compute_source_influence_new(
-            A_list, 
-            AM_list, 
-            B_list, 
-            BM_list, 
-            SL_list, 
-            SM_list, 
-            A1_list, 
-            PN_list, 
-            S_list, 
-            mode=influence_mode
+        num_edges = panel_corners.shape[2]
+        AIC_vel_vec_list = []
+        for i in range(num_edges-1):
+            asdf = compute_vortex_line_ind_vel(
+                panel_corners_exp_vec[:,:,i], 
+                panel_corners_exp_vec[:,:,i+1], 
+                coll_point_exp_vec[:,:,0], 
+                mode='wake', 
+                vc=None
+            )
+            AIC_vel_vec_list.append(asdf)
+        asdf = compute_vortex_line_ind_vel(
+            panel_corners_exp_vec[:,:,-1], 
+            panel_corners_exp_vec[:,:,0], 
+            coll_point_exp_vec[:,:,0], 
+            mode='wake', 
+            vc=None
         )
-    print(AIC_mu_vec.shape)
-    if BC == 'Neumann': # do normal vector projections here
-        pass
+        AIC_vel_vec_list.append(asdf)
+        AIC_mu_vel_vec = sum(AIC_vel_vec_list)
 
+        expanded_shape_proj = (num_nodes, num_eval_pts, num_induced_pts, 3)
+        vectorized_shape_proj = (num_nodes, num_interactions, 3)
+
+        normal_vec_eval_exp = csdl.expand(normal_vec_eval, expanded_shape_proj, 'ijk->ijak')
+        normal_vec_eval_exp_vec = normal_vec_eval_exp.reshape(vectorized_shape_proj)
+
+        AIC_mu_vec = csdl.sum(normal_vec_eval_exp_vec*AIC_mu_vel_vec, axes=(2,))
+
+        if do_source:
+            # additional expansions for the (3,) dimension for velocity
+            A = A.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            AM = AM.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            B = B.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            BM = BM.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            SL_j_exp_vec = SL_j_exp_vec.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            SM_j_exp_vec = SM_j_exp_vec.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            A1 = A1.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            PN = PN.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            S_j_exp_vec = S_j_exp_vec.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+
+            A_list = [A[:,:,ind] for ind in range(num_corners)]
+            AM_list = [AM[:,:,ind] for ind in range(num_corners)]
+            B_list = [B[:,:,ind] for ind in range(num_corners)]
+            BM_list = [BM[:,:,ind] for ind in range(num_corners)]
+            SL_list = [SL_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+            SM_list = [SM_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+            A1_list = [A1[:,:,ind] for ind in range(num_corners)]
+            PN_list = [PN[:,:,ind] for ind in range(num_corners)]
+            S_list = [S_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+
+            AIC_sigma_vel_vec = compute_source_influence_new(
+                A_list, 
+                AM_list, 
+                B_list, 
+                BM_list, 
+                SL_list, 
+                SM_list, 
+                A1_list, 
+                PN_list, 
+                S_list, 
+                panel_x_dir_exp_vec[:,:,0,:],
+                panel_y_dir_exp_vec[:,:,0,:],
+                panel_normal_exp_vec[:,:,0,:],
+                mode='velocity'
+            )
+
+            AIC_sigma_vec = csdl.sum(normal_vec_eval_exp_vec*AIC_sigma_vel_vec, axes=(2,))
 
     # ROM
     if ROM:

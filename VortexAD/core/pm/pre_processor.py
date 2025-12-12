@@ -1,7 +1,7 @@
 import numpy as np 
 import csdl_alpha as csdl
 
-def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
+def pre_processor(mesh_dict, mode='structured', constant_geometry=False, bc='Dirichlet'):
     
     if mode == 'structured':
         surface_names = list(mesh_dict.keys())
@@ -223,7 +223,10 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
                 m_vec = m_dir / csdl.expand(m_norm, m_dir.shape, 'jk->jka')
                 l_vec = csdl.cross(m_vec, normal_vec, axis=2)
 
-            panel_center_mod = panel_center - normal_vec*0.001
+            if bc == 'Dirichlet':
+                panel_center_mod = panel_center - normal_vec*1.e-6
+            elif bc == 'Neumann':
+                panel_center_mod = panel_center - normal_vec*0.
 
             mesh_dict['panel_center_mod_' + cell_type] = panel_center_mod
             mesh_dict['panel_area_' + cell_type] = panel_area
@@ -299,13 +302,18 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False):
 
             start += num_cell_per_type[i]
 
+        collocation_velocity = mesh_dict['collocation_velocity'] # prescribed velocity @ collocation
+        
         mesh_dict['panel_normal'] = panel_normal
         mesh_dict['panel_x_dir'] = panel_x_dir
         mesh_dict['panel_y_dir'] = panel_y_dir
         mesh_dict['panel_center'] = panel_center
         mesh_dict['panel_center_mod'] = panel_center_mod
-        mesh_dict['coll_point_velocity'] = coll_point_velocity
         mesh_dict['panel_area'] = panel_area
+        if collocation_velocity is None:
+            mesh_dict['coll_point_velocity'] = coll_point_velocity
+        else:
+            mesh_dict['coll_point_velocity'] = coll_point_velocity + collocation_velocity
 
         start, stop = 0, 0
         for i, cell_type in enumerate(cell_types):

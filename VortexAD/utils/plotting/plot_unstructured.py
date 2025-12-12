@@ -40,7 +40,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     vps.add_scalarbar()
     vp += vps
     # vp += __doc__
-    # nl = NormalLines(vps, on=on, scale=0.1)
+    # nl = NormalLines(vps, on=on, scale=1.).linecolor('black')
     # vp += nl
     # if panel_center is not None:
     #     arrows = Arrows(panel_center, Cp+panel_center, c='red')
@@ -84,13 +84,13 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
                 axes=False, interactive=interactive)  # render the scene
     else:
         show(vps, elevation=-45, azimuth=-45, roll=45,
-                axes=False, interactive=interactive)  # render the scene
+                axes=False, interactive=interactive, screenshot=screenshot)  # render the scene
     # video.add_frame()  # add individual frame
     # # time.sleep(0.1)
     # # vp.interactive().close()
     # vp.close_window()
 
-def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_connectivity, wake_form, TE_indices, wake_edges2cells,
+def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_connectivity, wake_form, TE_indices, TE_indices_zeroed, wake_edges2cells,
                    interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio'):
     vedo.settings.default_backend = 'vtk'
     nt = surface_data.shape[0]
@@ -136,7 +136,11 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
         vp += __doc__
 
         if i > 0:
-            wake_points_iter = wake_mesh[i,:,:].reshape((nt, ns, 3))[:i+1,:].reshape((ns*(i+1), 3))
+            # wake_points_iter = wake_mesh[i,:,:].reshape((nt, ns, 3))[:i+1,:].reshape((ns*(i+1), 3))
+
+            wake_points_iter = wake_mesh[i,:,:].reshape((nt, ns, 3))[:i+1,:]
+            wake_points_iter[0,:] = mesh[i,TE_indices]
+            wake_points_iter = wake_points_iter.reshape((ns*(i+1), 3))
             if wake_form == 'grid':
                 wake_conn_iter = wake_connectivity[:i,:,:].reshape((i*nTp, 4))
                 vps = Mesh([np.reshape(wake_points_iter, (-1, 3)), wake_conn_iter], c='gray', alpha=1).linecolor('black')
@@ -149,12 +153,12 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
 
                 line_pts = []
                 line_edges = []
-                ns = len(TE_indices)
+                ns = len(TE_indices_zeroed)
                 # for loop
                 for j in range(i):
                     # line_pts.extend([[ind*j, ind*(j+1)] for ind in TE_indices])
-                    line_pts.extend([[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices])
-                    line_edges.extend([(ind+j*ns, ind+(j+1)*ns) for ind in TE_indices])
+                    line_pts.extend([[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices_zeroed])
+                    line_edges.extend([(ind+j*ns, ind+(j+1)*ns) for ind in TE_indices_zeroed])
                 # # list comprehension (supposedly faster)
                 # line_pts = [[[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices] for j in range(i)]
                 edge_adj_cells = []

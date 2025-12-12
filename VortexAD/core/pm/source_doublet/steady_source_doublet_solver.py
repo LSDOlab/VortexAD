@@ -36,7 +36,7 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
         num_nodes = orig_mesh_dict['nodal_velocity'].shape[0]
 
     print('running pre-processing')
-    mesh_dict = pre_processor(orig_mesh_dict, mode=mesh_mode, constant_geometry=reuse_AIC)
+    mesh_dict = pre_processor(orig_mesh_dict, mode=mesh_mode, constant_geometry=reuse_AIC, bc=BC)
 
     print('solving for doublet strengths')
     if not iterative:

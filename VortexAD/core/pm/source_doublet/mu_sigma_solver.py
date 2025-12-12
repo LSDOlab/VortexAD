@@ -27,6 +27,8 @@ def mu_sigma_solver(num_nodes, mesh_dict, mode='structured', batch_size=None, bc
     wake_mesh_dict = fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100, mesh_mode=mode, constant_geometry=constant_geometry)
 
     sigma = compute_source_strength(mesh_dict, num_nodes, num_panels=num_tot_panels, mesh_mode=mode, constant_geometry=constant_geometry)
+    # V_inf_proj = sigma
+    # sigma = sigma*0.
     if constant_geometry:
         num_nodes_geom = 1
     else:
@@ -59,7 +61,7 @@ def mu_sigma_solver(num_nodes, mesh_dict, mode='structured', batch_size=None, bc
             else:
                 print(f'yes batching; batch size = {batch_size}')
                 # AIC_mu, AIC_sigma, AIC_mu_orig = unstructured_AIC_computation_UW_looping(mesh_dict, wake_mesh_dict, num_nodes_geom, num_tot_panels, batch_size)
-                AIC_mu, AIC_sigma, AIC_mu_orig = unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num_nodes_geom, num_tot_panels, batch_size)
+                AIC_mu, AIC_sigma, AIC_mu_orig = unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num_nodes_geom, num_tot_panels, batch_size, bc)
             # for i in csdl.frange(1):
             #     AIC_mu, AIC_sigma = unstructured_AIC_computation(mesh_dict, wake_mesh_dict, num_nodes, num_tot_panels)
             #     graph = csdl.get_current_recorder().active_graph
@@ -89,6 +91,7 @@ def mu_sigma_solver(num_nodes, mesh_dict, mode='structured', batch_size=None, bc
         RHS = -sigma_BC_influence
     elif bc == 'Neumann':
         surf_normal_vel = sigma # sigma = -V_inf \cdot normal_vec
+        # surf_normal_vel = V_inf_proj # sigma = -V_inf \cdot normal_vec
         RHS = -sigma_BC_influence + surf_normal_vel
         # RHS =  surf_normal_vel
 
@@ -114,32 +117,50 @@ def mu_sigma_solver(num_nodes, mesh_dict, mode='structured', batch_size=None, bc
             mu_nn = csdl.matvec(U,mu_red_nn)
             mu = mu.set(csdl.slice[nn,:], value=mu_nn)
         else:
-            if constant_geometry:
+            if bc == 'Neumann':
+                # ind = 0
+                # mu_0 = 10.
+                # mu_0 = 4.61
+                # A_bar = AIC_mu[nn,:,1:]
+                # v = AIC_mu[nn,:,0]
+                # A_bar_T = A_bar.T()
+                # lin_sys_red = csdl.matmat(A_bar_T, A_bar)
+                # RHS_red = csdl.matvec(A_bar_T, RHS_nn-mu_0*v)
+                # mu_red = csdl.solve_linear(lin_sys_red, RHS_red)
+                # print(mu_red.shape)
+                # print(num_tot_panels)
+
+                # mu_inner = csdl.Variable(value=np.zeros((AIC_mu.shape[1])))
+                # mu_inner = mu_inner.set(csdl.slice[0], mu_0)
+                # mu_inner = mu_inner.set(csdl.slice[1:], mu_red)
+
+                ind = 5
+                mu_0 = 10.
+                mu_0 = 4.61
+                v = AIC_mu[nn,:,ind]
+                A_bar = csdl.Variable(value=np.zeros((AIC_mu.shape[1], AIC_mu.shape[1]-1)))
+                A_bar = A_bar.set(csdl.slice[:,:ind], AIC_mu[nn,:,:ind])
+                A_bar = A_bar.set(csdl.slice[:,ind:], AIC_mu[nn,:,(ind+1):])
+                A_bar_T = A_bar.T()
+                lin_sys_red = csdl.matmat(A_bar_T, A_bar)
+                RHS_red = csdl.matvec(A_bar_T, RHS_nn-mu_0*v)
+                mu_red = csdl.solve_linear(lin_sys_red, RHS_red)
+                print(mu_red.shape)
+                print(num_tot_panels)
+
+                mu_inner = csdl.Variable(value=np.zeros((AIC_mu.shape[1])))
+                mu_inner = mu_inner.set(csdl.slice[:ind], mu_red[:ind])
+                mu_inner = mu_inner.set(csdl.slice[ind], mu_0)
+                mu_inner = mu_inner.set(csdl.slice[(ind+1):], mu_red[ind:])
+
+                mu = mu_inner
+            elif constant_geometry:
                 mu = csdl.solve_linear(AIC_mu[0,:,:], RHS_nn)
                 # mu = csdl.matvec(AIC_mu[0,:,:], RHS_nn)
             else:
                 mu = csdl.solve_linear(AIC_mu[nn,:,:], RHS_nn)
     mu = loop_builder.add_stack(mu)
     loop_builder.finalize()
-
-    
-    # iterative nonlinear solver
-    # for nn in csdl.frange(num_nodes):
-    #     RHS_nn = RHS[nn,:]
-    #     AIC_mu_nn = AIC_mu[nn,:,:]
-    #     mu_nn = csdl.ImplicitVariable(value=np.zeros(RHS_nn.shape))
-
-    #     residual = csdl.matvec(AIC_mu_nn, mu_nn) - RHS_nn
-    #     solver = csdl.nonlinear_solvers.GaussSeidel(
-    #         'nl_solver_mu',
-    #         tolerance=1e-10,
-    #         max_iter=100
-    #     )
-    #     # solver.add_state(mu_nn, residual)
-    #     solver.add_state(mu_nn, residual, state_update=mu_nn+2.*residual)
-    #     solver.run()
-
-    #     mu = mu.set(csdl.slice[nn,:], value=mu_nn)
 
     # return mu, sigma, wake_mesh_dict, AIC_mu, AIC_sigma, AIC_mu_orig
     return mu, sigma, wake_mesh_dict, AIC_mu, AIC_sigma, RHS, AIC_mu_orig
@@ -1444,7 +1465,7 @@ def unstructured_AIC_computation_UW_looping(mesh_dict, wake_mesh_dict, num_nodes
 
     return AIC_mu, AIC_sigma, AIC_mu_orig
 
-def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num_nodes, num_tot_panels, batch_size):
+def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num_nodes, num_tot_panels, batch_size, BC):
     cells = mesh_dict['cell_point_indices'] # keys are cell types, entries are points for each cell
     cell_types = list(cells.keys())
     cell_adjacency_types = mesh_dict['cell_adjacency'] # keys are cell types, entries are adjacent cell indices
@@ -1462,21 +1483,21 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
     AIC_batch_func = csdl.experimental.batch_function(
         compute_aic_batched,
         batch_size=batch_size,
-        batch_dims=[1]+[None]*8
+        batch_dims=[1]*2+[None]*8
         # batch_dims=[None]+[1]*8
     )
 
     AIC_batch_func_mu = csdl.experimental.batch_function(
         compute_aic_batched,
         batch_size=batch_size,
-        batch_dims=[1]+[None]*8
+        batch_dims=[1]*2+[None]*8
         # batch_dims=[None]+[1]*8
     )
 
     AIC_batch_func_sigma = csdl.experimental.batch_function(
         compute_aic_batched,
         batch_size=batch_size,
-        batch_dims=[1]+[None]*8
+        batch_dims=[1]*2+[None]*8
         # batch_dims=[None]+[1]*8
     )
 
@@ -1486,14 +1507,14 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
         stop_i += num_cells_i
 
         coll_point_eval = mesh_dict['panel_center_mod_' + cell_type_i]
+        normal_vec_eval = mesh_dict['panel_normal_' + cell_type_i]
 
         start_j, stop_j = 0, 0
         for j, cell_type_j in enumerate(cell_types):
             num_cells_j = num_cells_per_type[j]
             stop_j += num_cells_j
 
-            
-
+        
             coll_point = mesh_dict['panel_center_' + cell_type_j] # (nn, num_tot_panels, 3)
             panel_corners = mesh_dict['panel_corners_' + cell_type_j] # (nn, num_tot_panels, 3, 3) 
             panel_x_dir = mesh_dict['panel_x_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
@@ -1507,6 +1528,7 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
 
             doublet_influence = AIC_batch_func_mu(
                 coll_point_eval,
+                normal_vec_eval,
                 coll_point,
                 panel_corners,
                 panel_x_dir,
@@ -1515,11 +1537,13 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
                 S,
                 SL,
                 SM,
-                mode='doublet'
+                mode='doublet',
+                BC=BC
             )
 
             source_influence = AIC_batch_func_sigma(
                 coll_point_eval,
+                normal_vec_eval,
                 coll_point,
                 panel_corners,
                 panel_x_dir,
@@ -1528,7 +1552,8 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
                 S,
                 SL,
                 SM,
-                mode='source'
+                mode='source',
+                BC=BC
             )
 
             doublet_influence = doublet_influence[:,0,:].reshape((num_cells_i, num_cells_j))
@@ -1553,6 +1578,7 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
 
         wake_doublet_influence = AIC_batch_func(
             coll_point_eval,
+            normal_vec_eval,
             coll_point_w,
             panel_corners_w,
             panel_x_dir_w,
@@ -1561,7 +1587,8 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
             S_w,
             SL_w,
             SM_w,
-            mode='wake'
+            mode='wake',
+            BC=BC
         )
         wake_doublet_influence = wake_doublet_influence.reshape((1,num_cells_i,num_wake_panels))
         AIC_mu_wake = AIC_mu_wake.set(csdl.slice[:,start_i:stop_i,:], wake_doublet_influence)
@@ -1604,8 +1631,10 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
     return AIC_mu, AIC_sigma, AIC_mu_orig
 
 
-def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
-                        panel_normal, S_j, SL_j, SM_j, mode='doublet'):
+def compute_aic_batched(coll_point, normal_vec_eval, panel_center, panel_corners, panel_x_dir, panel_y_dir,
+                        panel_normal, S_j, SL_j, SM_j, mode='doublet', BC='Dirichlet'):
+    # print(BC)
+    # exit()
     num_nodes = coll_point.shape[0]
     num_eval_pts = coll_point.shape[1]
     num_induced_pts = panel_center.shape[1]
@@ -1665,43 +1694,116 @@ def compute_aic_batched(coll_point, panel_center, panel_corners, panel_x_dir, pa
 
     A1 = AM*SL_j_exp_vec - AL*SM_j_exp_vec
 
-    A_list = [A[:,:,ind] for ind in range(num_corners)]
-    AM_list = [AM[:,:,ind] for ind in range(num_corners)]
-    B_list = [B[:,:,ind] for ind in range(num_corners)]
-    BM_list = [BM[:,:,ind] for ind in range(num_corners)]
-    SL_list = [SL_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-    SM_list = [SM_j_exp_vec[:,:,ind] for ind in range(num_corners)]
-    A1_list = [A1[:,:,ind] for ind in range(num_corners)]
-    PN_list = [PN[:,:,ind] for ind in range(num_corners)]
-    S_list = [S_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+    if BC == 'Dirichlet':
 
-    if mode == 'doublet' or mode == 'wake':
-        AIC_vec = compute_doublet_influence_new(
-            A_list, 
-            AM_list, 
-            B_list, 
-            BM_list, 
-            SL_list, 
-            SM_list, 
-            A1_list, 
-            PN_list, 
-            mode='potential'
-        )
-    elif mode == 'source':
-        AIC_vec = compute_source_influence_new(
-            A_list, 
-            AM_list, 
-            B_list, 
-            BM_list, 
-            SL_list, 
-            SM_list, 
-            A1_list, 
-            PN_list, 
-            S_list, 
-            mode='potential'
-        )
+        A_list = [A[:,:,ind] for ind in range(num_corners)]
+        AM_list = [AM[:,:,ind] for ind in range(num_corners)]
+        B_list = [B[:,:,ind] for ind in range(num_corners)]
+        BM_list = [BM[:,:,ind] for ind in range(num_corners)]
+        SL_list = [SL_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+        SM_list = [SM_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+        A1_list = [A1[:,:,ind] for ind in range(num_corners)]
+        PN_list = [PN[:,:,ind] for ind in range(num_corners)]
+        S_list = [S_j_exp_vec[:,:,ind] for ind in range(num_corners)]
 
-    # A_out = AIC_vec.reshape((num_nodes, num_eval_pts, num_induced_pts))
+        if mode == 'doublet' or mode == 'wake':
+            AIC_vec = compute_doublet_influence_new(
+                A_list, 
+                AM_list, 
+                B_list, 
+                BM_list, 
+                SL_list, 
+                SM_list, 
+                A1_list, 
+                PN_list, 
+                mode='potential'
+            )
+        elif mode == 'source':
+            AIC_vec = compute_source_influence_new(
+                A_list, 
+                AM_list, 
+                B_list, 
+                BM_list, 
+                SL_list, 
+                SM_list, 
+                A1_list, 
+                PN_list, 
+                S_list, 
+                mode='potential'
+            )
+    
+    elif BC == 'Neumann':
+        if mode == 'doublet' or mode == 'wake':
+            num_edges = panel_corners.shape[2]
+            AIC_vel_vec_list = []
+            for i in range(num_edges-1):
+                asdf = compute_vortex_line_ind_vel(
+                    panel_corners_exp_vec[:,:,i], 
+                    panel_corners_exp_vec[:,:,i+1], 
+                    coll_point_exp_vec[:,:,0], 
+                    mode='wake', 
+                    vc=None
+                )
+                AIC_vel_vec_list.append(asdf)
+            asdf = compute_vortex_line_ind_vel(
+                panel_corners_exp_vec[:,:,-1], 
+                panel_corners_exp_vec[:,:,0], 
+                coll_point_exp_vec[:,:,0], 
+                mode='wake', 
+                vc=None
+            )
+            AIC_vel_vec_list.append(asdf)
+            AIC_vel_vec = sum(AIC_vel_vec_list)
+
+        elif mode == 'source':
+
+            # additional expansions for the (3,) dimension for velocity
+            A = A.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            AM = AM.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            B = B.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            BM = BM.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            SL_j_exp_vec = SL_j_exp_vec.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            SM_j_exp_vec = SM_j_exp_vec.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            A1 = A1.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            PN = PN.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+            S_j_exp_vec = S_j_exp_vec.expand(panel_normal_exp_vec.shape, 'ijk->ijka')
+
+            A_list = [A[:,:,ind] for ind in range(num_corners)]
+            AM_list = [AM[:,:,ind] for ind in range(num_corners)]
+            B_list = [B[:,:,ind] for ind in range(num_corners)]
+            BM_list = [BM[:,:,ind] for ind in range(num_corners)]
+            SL_list = [SL_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+            SM_list = [SM_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+            A1_list = [A1[:,:,ind] for ind in range(num_corners)]
+            PN_list = [PN[:,:,ind] for ind in range(num_corners)]
+            S_list = [S_j_exp_vec[:,:,ind] for ind in range(num_corners)]
+
+            AIC_vel_vec = compute_source_influence_new(
+                A_list, 
+                AM_list, 
+                B_list, 
+                BM_list, 
+                SL_list, 
+                SM_list, 
+                A1_list, 
+                PN_list, 
+                S_list,
+                panel_x_dir_exp_vec[:,:,0,:],
+                panel_y_dir_exp_vec[:,:,0,:],
+                panel_normal_exp_vec[:,:,0,:],
+                mode='velocity'
+            )
+        expanded_shape_proj = (num_nodes, num_eval_pts, num_induced_pts, 3)
+        vectorized_shape_proj = (num_nodes, num_interactions, 3)
+
+        normal_vec_eval_exp = csdl.expand(normal_vec_eval, expanded_shape_proj, 'ijk->ijak')
+        normal_vec_eval_exp_vec = normal_vec_eval_exp.reshape(vectorized_shape_proj)
+        print(AIC_vel_vec.shape)
+        print(normal_vec_eval_exp_vec.shape)
+
+        AIC_vec = csdl.sum(normal_vec_eval_exp_vec*AIC_vel_vec, axes=(2,))
+        print(AIC_vec.shape)
+        # exit()
 
     return AIC_vec
 

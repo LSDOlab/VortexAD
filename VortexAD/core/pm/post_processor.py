@@ -185,7 +185,6 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     if compressibility:
         
         M_inf = Q_inf/sos
-        M_inf = 0.7
         beta = (1-M_inf**2)**0.5
         if constant_geometry:
             beta  = csdl.expand(beta, (num_nodes, Cp.shape[1]),'i->ia')

@@ -49,6 +49,12 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     nc_w = nt
     TE = mesh[:,list(TE_node_indices), :]
 
+    wake_mesh = csdl.Variable(value=np.zeros((nt, ns, 3)))
+    wake_mesh = wake_mesh.set(csdl.slice[0,:], TE[0])
+    wake_mesh = wake_mesh.set(csdl.slice[1:,:], x_w[0,:].reshape((nt,ns,3))[1:,:])
+
+    x_w = wake_mesh.reshape((1,ns*nt, 3))
+
     TE_edges_zeroed = []
     for i in range(num_TE_edges):
         edge = TE_edges[i]
@@ -79,7 +85,7 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
 
     print('running pre-processing')
     if not reuse_AIC:
-        mesh_dict = pre_processor(orig_mesh_dict, mode=mesh_mode, constant_geometry=reuse_AIC)
+        mesh_dict = pre_processor(orig_mesh_dict, mode=mesh_mode, constant_geometry=reuse_AIC, bc=BC)
     else:
         mesh_dict = reuse_vars['mesh_dict']
 
@@ -108,10 +114,37 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     # solve linear system here: A\mu = -B\sigma - C\mu_w
 
     RHS = -csdl.matvec(AIC_sigma[0,:], sigma[0,:]) - csdl.matvec(AIC_mu_wake[0,:], mu_w[0,:])
+    if BC == 'Neumann':
+        if not ROM:
+            surf_normal_vel = sigma # -V_inf \cdot normal_vec; NOTE: UPDATE IN FUTURE TO BE INDEPENDENT OF SIGMA
+        else:
+            UT = ROM[0]
+            surf_normal_vel = csdl.matvec(UT, sigma[0,:])
+        RHS = RHS + surf_normal_vel[0,:]
 
     if not ROM:
-        mu = csdl.solve_linear(AIC_mu[0,:], RHS)
-        mu = mu.expand((1,) + mu.shape, 'i->ai')
+        if BC == 'Dirichlet':
+            mu = csdl.solve_linear(AIC_mu[0,:], RHS)
+            mu = mu.expand((1,) + mu.shape, 'i->ai')
+        elif BC == 'Neumann':
+
+            ind = 5
+            mu_0 = 10.
+            v = AIC_mu[0,:,ind]
+            A_bar = csdl.Variable(value=np.zeros((AIC_mu.shape[1], AIC_mu.shape[1]-1)))
+            A_bar = A_bar.set(csdl.slice[:,:ind], AIC_mu[0,:,:ind])
+            A_bar = A_bar.set(csdl.slice[:,ind:], AIC_mu[0,:,(ind+1):])
+            A_bar_T = A_bar.T()
+            lin_sys_red = csdl.matmat(A_bar_T, A_bar)
+            RHS_red = csdl.matvec(A_bar_T, RHS-mu_0*v)
+            mu_red = csdl.solve_linear(lin_sys_red, RHS_red)
+
+            mu = csdl.Variable(value=np.zeros((1, AIC_mu.shape[1])))
+            mu = mu.set(csdl.slice[0,:ind], mu_red[:ind])
+            mu = mu.set(csdl.slice[0,ind], mu_0)
+            mu = mu.set(csdl.slice[0,(ind+1):], mu_red[ind:])
+
+
     else:
         UT, U = ROM[0], ROM[1]
         mu_red = csdl.solve_linear(AIC_mu[0,:], RHS) # matrices account for reduced basis in ROM
@@ -150,9 +183,10 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
 
     dxw_dt_grid = csdl.Variable(value=np.zeros(x_w_grid.shape))
     # dxw_dt_grid = dxw_dt_grid.set(
-        # csdl.slice[0,:,],
-        # wake_vel_grid[0,:,:] + (TE[0] - x_w_grid[0,:,:])/dt
-        # wake_vel_grid[0,:,:] + (x_w_grid[0,:,:] - TE[0])/dt
+    #     csdl.slice[0,:,],
+    #     # wake_vel_grid[0,:,:]
+    #     (TE[0] - x_w_grid[0,:,:])/dt # [0] on TE is to remove num_nodes dimension at the front
+    #     # wake_vel_grid[0,:,:] + (x_w_grid[0,:,:] - TE[0])/dt
     # )
     dxw_dt_grid = dxw_dt_grid.set(
         csdl.slice[1:,:,:],

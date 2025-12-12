@@ -402,6 +402,7 @@ def unsteady_post_processor(mesh_dict, output_dict, mu, num_nodes, dt, nt,
 
     dF_no_normal = -0.5*rho_exp*Q_inf_norm**2*panel_area*Cp
     dF = csdl.expand(dF_no_normal, panel_normal.shape, 'jk->jka')*panel_normal
+    total_force = csdl.sum(dF, axes=(1,))
     Fz_panel = csdl.tensordot(dF, z_dir_global, axes=([2],[0]))
     Fx_panel = csdl.tensordot(dF, x_dir_global, axes=([2],[0]))
 
@@ -439,6 +440,7 @@ def unsteady_post_processor(mesh_dict, output_dict, mu, num_nodes, dt, nt,
     # scalar/vector forces
     output_dict['L'] = L
     output_dict['Di'] = Di
+    output_dict['F'] = total_force
     output_dict['M'] = moment
 
     # force + pressure distributions

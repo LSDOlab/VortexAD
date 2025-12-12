@@ -95,6 +95,6 @@ def compute_vortex_line_ind_vel(p1, p2, p_eval, gamma=1., mode='surface', vc=Non
 
         f1 = r1r2_cross/(r1s*r2s - rdot_exp**2 + vc*(r1s+r2s-2*r1_norm_exp*r2_norm_exp) + 1.e-12)
         f2 = (r1s - rdot_exp)/(r1s+eps_s)**0.5 + (r2s - rdot_exp)/(r2s+eps_s)**0.5
-        induced_vel = f1*f2/4./np.pi
+        induced_vel = gamma*f1*f2/4./np.pi
     
     return induced_vel

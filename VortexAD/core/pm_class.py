@@ -180,7 +180,7 @@ class PanelMethod(object):
             V_vec = csdl.Variable(value=0., shape=(num_nodes,3))
             V_vec = V_vec.set(csdl.slice[:,0], value=-V_inf)
             if alpha is None:
-                grid_velocity = csdl.expand(V_vec, grid_shape)
+                grid_velocity = csdl.expand(V_vec, (num_nodes,) + grid_shape, 'ij->iaj')
             else:
                 pitch_rad = alpha * np.pi/180.
                 V_rot_mat = csdl.Variable(value=0., shape=(num_nodes, 3,3))
@@ -228,7 +228,13 @@ class PanelMethod(object):
 
         # flipping sign due to coordinate systems
         self.grid_velocity = -grid_velocity
+
         self.coll_velocity = None
+        self.coll_vel_flag = False
+        input_coll_vel = self.options_dict['collocation_velocity']
+        if input_coll_vel:
+            self.coll_velocity = -input_coll_vel # velocity relative to body --> sign change
+            self.coll_vel_flag = True
 
         self.num_nodes = num_nodes
 
@@ -264,16 +270,20 @@ class PanelMethod(object):
         if self.reuse_AIC:
             nn_geom = 1
 
-        self.points = csdl.expand(
-            self.points,
-            (nn_geom,) + self.points.shape,
-            'ij->aij'
-        )
+        if len(self.points.shape) == 3:
+            self.points  = self.points
+        else:
+            self.points = csdl.expand(
+                self.points,
+                (nn_geom,) + self.points.shape,
+                'ij->aij'
+            )
 
         self.orig_mesh_dict = {
             'points': self.points,
             'nodal_velocity': self.grid_velocity,
-            'coll_point_velocity': self.coll_velocity,
+            'collocation_velocity': self.coll_velocity,
+            'coll_vel_flag': self.coll_vel_flag,
             'cell_point_indices': self.cells,
             'cell_adjacency': self.cell_adjacency,
             'points2cells': self.points2cells, # used for higher-order methods
@@ -411,7 +421,7 @@ class PanelMethod(object):
 
             from VortexAD.utils.plotting.plot_unstructured import plot_pressure_distribution
 
-            plot_pressure_distribution(self.points_orig, TE_coloring, connectivity=combined_cells, interactive=True, top_view=False, cmap='rainbow')
+            plot_pressure_distribution(self.points_orig, TE_coloring, connectivity=combined_cells, interactive=True, top_view=False, cmap='rainbow', screenshot=False)
 
         return self.TE_data
     
@@ -501,7 +511,7 @@ class PanelMethod(object):
         for cell_type in cell_types:
             combined_cells += self.cells[cell_type].tolist()
 
-        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, self.TE_nodes_zeroed, self.edges2cells_w, interactive=interactive, camera=camera, name=name)
+        plot_wireframe(mesh, wake_mesh, surface_data, wake_data, combined_cells, self.wake_connectivity, wake_form, self.TE_node_indices, self.TE_nodes_zeroed, self.edges2cells_w, interactive=interactive, camera=camera, name=name)
     
     # def conduct_off_body_analysis(self, eval_pts):
     #     velocity = off_body_analysis(eval_pts)

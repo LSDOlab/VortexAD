@@ -21,6 +21,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     free_wake           = solver_options_dict['free_wake']
     ROM                 = solver_options_dict['ROM']
 
+    coll_vel_flag       = orig_mesh_dict['coll_vel_flag']
+    coll_vel            = orig_mesh_dict['collocation_velocity']
+
     solver_options_dict['ROM_orig'] = ROM # saving original
     if ROM: # NOTE: this only works for precomputed basis vectors with POD
         # for Krylov-subspace, we will need to adjust this
@@ -64,6 +67,8 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         # )
         orig_mesh_dict['points'] = ozone_vars.dynamic_parameters['points']
         orig_mesh_dict['nodal_velocity'] = ozone_vars.dynamic_parameters['nodal_velocity']
+        if coll_vel_flag:
+            orig_mesh_dict['collocation_velocity'] = ozone_vars.dynamic_parameters['coll_vel']
         if ROM:
             if len(ROM_shape) == 3: # time-varying basis
                 ROM_list_ozone = [
@@ -137,11 +142,11 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         x_w_0 = csdl.expand(TE_pts[0,:], TE_pts.shape[1:], 'ij->aij')
     else:
         x_w_0 = TE_pts.reshape((np.prod(TE_pts.shape[:2]),3))
-        x_w_0_shift = csdl.Variable(value=np.zeros(x_w_0.shape))
-        x_w_0_shift = x_w_0_shift.set(
-            csdl.slice[:,0], value=0.01
-        )
-        x_w_0 = x_w_0 + x_w_0_shift
+        # x_w_0_shift = csdl.Variable(value=np.zeros(x_w_0.shape))
+        # x_w_0_shift = x_w_0_shift.set(
+        #     csdl.slice[:,0], value=0.0001
+        # )
+        # x_w_0 = x_w_0 + x_w_0_shift
 
     # x_w_0 = csdl.Variable(value=np.zeros(nt, num_TE_pts)) 
     # x_w_0 = TE_pts # wake position initial condition
@@ -159,6 +164,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
 
     ode_problem.add_dynamic_parameter('points', orig_mesh_dict['points'])
     ode_problem.add_dynamic_parameter('nodal_velocity', orig_mesh_dict['nodal_velocity'])
+    if coll_vel_flag:
+        ode_problem.add_dynamic_parameter('coll_vel', orig_mesh_dict['collocation_velocity'])
+
     if ROM:
         if len(ROM_shape) == 3: # time-varying basis
             ode_problem.add_dynamic_parameter('U', U)

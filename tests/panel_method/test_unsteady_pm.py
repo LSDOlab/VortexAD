@@ -17,7 +17,7 @@ pitch = csdl.Variable(value=np.array([5.]))
 
 nt = 30
 
-test_case = 'NACA'
+test_case = 'BWB'
 if test_case == 'NACA':
     dt = csdl.Variable(value=0.05)
     V_inf = 10
@@ -54,9 +54,9 @@ input_dict = {
     'Cp cutoff': -3.,
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
     'ref_area': ref_area, 
-    # 'partition_size': 1,
-    'partition_size': None,
-    'compressibility': True,
+    'partition_size': 1,
+    # 'partition_size': None,
+    'compressibility': False,
 
     'solver_mode': 'unsteady',
     'free_wake': False,
@@ -122,10 +122,16 @@ sim.run()
 stop = time.time()
 print(f'compile + run time: {stop-start} seconds')
 
-# start_run = time.time()
-# sim.run()
-# stop_run = time.time()
-# print(f'run time: {stop_run-start_run} seconds')
+num_runs = 5
+start_total = time.time()
+for i in range(num_runs):
+    start_run = time.time()
+    sim.run()
+    stop_run = time.time()
+    print(f'run time: {stop_run-start_run} seconds')
+stop_total = time.time()
+print(f'total run time for {num_runs} runs: {stop_total-start_total} seconds')
+print(f'average run time across {num_runs} runs: {(stop_total-start_total)/num_runs} seconds per run')
 
 CL_val = sim[CL]
 CDi_val = sim[CDi]
