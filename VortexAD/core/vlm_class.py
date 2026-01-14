@@ -1,6 +1,11 @@
 import numpy as np
 import csdl_alpha as csdl
 
+from VortexAD.core.vlm.steady_vlm_solver import steady_vlm_solver
+from VortexAD.core.vlm.unsteady_vlm_solver import unsteady_vlm_solver
+
+from VortexAD.utils.plotting.plot_vlm import plot_wireframe
+
 default_input_dict = {
     # flow properties
     'V_inf': None, # m/s
@@ -12,6 +17,7 @@ default_input_dict = {
 
     # mesh
     'meshes': None, # NOTE: set up default mesh here 
+    'mesh_names': None,
 
     # collocation velocity
     'collocation_velocity': False,
@@ -43,11 +49,14 @@ default_input_dict = {
     'store_state_history': True, # flag to store state history
     'core_radius': 1.e-6, # vortex core radius
     'free_wake': False,
+
+    # ML airfoil model
+    'alpha_ML': False
 }
 
 
 
-class VLM(object):
+class VortexLatticeMethod(object):
     def __init__(self, solver_input_dict):
         options_dict = default_input_dict
         for key in solver_input_dict.keys():
@@ -55,8 +64,15 @@ class VLM(object):
         self.options_dict = options_dict
 
         if self.options_dict['meshes'] is None:
+            from VortexAD.utils.meshing.gen_vlm_mesh import gen_vlm_mesh
             print('No mesh input. Generating default mesh.')
+            ns, nc = 11, 3
+            b, c = 10., 1.
+            mesh = gen_vlm_mesh(ns, nc, b, c)
+            self.options_dict['meshes'] = [mesh]
 
+        self.meshes = self.options_dict['meshes']
+        self.num_surfaces = len(self.options_dict['meshes'])
         self.reuse_AIC = self.options_dict['reuse_AIC']
         self.solver_mode = self.options_dict['solver_mode']
 
@@ -70,15 +86,27 @@ class VLM(object):
             - scalar
             - vector
             - grid
+
+        Ways to input velocity:
+        - Mach*sos and alpha as a scalar
+        - Mach*sos and alpha across num_nodes
+        - V_inf and alpha as a scalar
+        - V_inf and alpha across num_nodes
+        - nodal velocity across num_nodes, grid points and 3
+
+        Steps to propagate velocities:
+        - take one of the inputs from above list
+        - convert to 3-components (x,y,z) 
+            - this is a vector representing the flow field
+        - loop over mesh list and make velocity across the nodes
+            - V_vec --> nodal velocities (nn, nc, ns, 3) using einsum
         '''
-        grid_shape = self.points.shape
-        nn_grid, num_pts = grid_shape[0], grid_shape[1]
+        # grid_shape = self.points.shape
 
         V_inf   = self.options_dict['V_inf']
         mach    = self.options_dict['Mach']
         sos     = self.options_dict['sos']
         alpha   = self.options_dict['alpha']
-        mesh_mode = self.options_dict['mesh_mode'] # structured or unstructured
         # if alpha is None:
         #     alpha = np.zeros(V_inf.shape)
 
@@ -126,7 +154,8 @@ class VLM(object):
             V_vec = csdl.Variable(value=0., shape=(num_nodes,3))
             V_vec = V_vec.set(csdl.slice[:,0], value=-V_inf)
             if alpha is None:
-                grid_velocity = csdl.expand(V_vec, (num_nodes,) + grid_shape, 'ij->iaj')
+                V_vec_nn = V_vec
+                # grid_velocity = csdl.expand(V_vec, (num_nodes,) + grid_shape, 'ij->iaj')
             else:
                 pitch_rad = alpha * np.pi/180.
                 V_rot_mat = csdl.Variable(value=0., shape=(num_nodes, 3,3))
@@ -137,9 +166,11 @@ class VLM(object):
                 V_rot_mat = V_rot_mat.set(csdl.slice[:,0,2], value=-csdl.sin(pitch_rad))
 
                 V_vec_rot = csdl.einsum(V_rot_mat, V_vec, action='ijk,ik->ij')
+                V_vec_nn = V_vec_rot
 
-                grid_velocity = csdl.expand(V_vec_rot, (num_nodes,) + grid_shape, 'ij->iaj')
-
+                # grid_velocity = csdl.expand(V_vec_rot, (num_nodes,) + grid_shape, 'ij->iaj')
+        elif isinstance(V_inf, list):
+            V_vec_nn = 0.
         else:
             num_nodes = V_inf.shape[0] # FIRST DIMENSION IS ALWAYS NUM NODES
             if not isinstance(V_inf, csdl.Variable):
@@ -151,7 +182,8 @@ class VLM(object):
                 V_vec = csdl.Variable(value=0., shape=(num_nodes,3))
                 V_vec = V_vec.set(csdl.slice[:,0], value=-V_inf)
                 if alpha is None:
-                    grid_velocity = csdl.expand(V_inf, grid_shape)
+                    V_vec_nn = V_vec_rot
+                    # grid_velocity = csdl.expand(V_inf, grid_shape)
                 else:
                     pitch_rad = alpha * np.pi/180.
                     V_rot_mat = csdl.Variable(value=0., shape=(num_nodes, 3,3))
@@ -162,27 +194,49 @@ class VLM(object):
                     V_rot_mat = V_rot_mat.set(csdl.slice[:,0,2], value=-csdl.sin(pitch_rad))
 
                     V_vec_rot = csdl.einsum(V_rot_mat, V_vec, action='ijk,ik->ij')
-                    print(grid_shape)
-                    grid_velocity = csdl.expand(V_vec_rot, (num_nodes,) + grid_shape, 'ij->iaj')
+                    V_vec_nn = V_vec_rot
+                    # print(grid_shape)
+                    # grid_velocity = csdl.expand(V_vec_rot, (num_nodes,) + grid_shape, 'ij->iaj')
+            
 
             elif V_inf.shape == (num_nodes, 3): # velocity 
-                grid_velocity = csdl.expand(V_inf, grid_shape, 'ij->iaj')
+                V_vec_rot = V_inf
+                # V_vec_rot = csdl.expand(V_inf, grid_shape, 'ij->iaj')
             
-            # case where velocity is a tensor of shape (nn, n_points, 3)
-            elif len(V_inf.shape) == 3:
-                grid_velocity = V_inf
+            # # case where velocity is a tensor of shape (nn, n_points, 3)
+            # elif len(V_inf.shape) == 3:
+            #     grid_velocity = V_inf
+        
+        self.mesh_velocities = []
+        for i, mesh in enumerate(self.meshes):
+            # nc, ns = mesh.shape[1], mesh.shape[2]
+            #  
+            # flipping sign due to coordinate systems
+            if len(mesh.shape) == 3: # mesh is steady
+                mesh_velocity = csdl.expand(-V_vec_nn, (num_nodes,) + mesh.shape, 'ij->iabj')
+            elif len(mesh.shape) == 4: # mesh is unsteady
+                mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
+            self.mesh_velocities.append(mesh_velocity)
+        
+        if isinstance(V_inf, list):
+            self.mesh_velocities = [-val for val in V_inf]
 
-        # flipping sign due to coordinate systems
-        self.grid_velocity = -grid_velocity
-
-        self.coll_velocity = None
-        self.coll_vel_flag = False
+        self.coll_velocity = self.num_surfaces*[None]
+        self.coll_vel_flag = self.num_surfaces*[False]
         input_coll_vel = self.options_dict['collocation_velocity']
-        if input_coll_vel:
-            self.coll_velocity = -input_coll_vel # velocity relative to body --> sign change
-            self.coll_vel_flag = True
+
+        for i in range(self.num_surfaces):
+            if input_coll_vel:
+                mvs = self.mesh_velocities[i].shape
+                expected_shape = (num_nodes, mvs[1]-1, mvs[2]-1, 3) # collocation points
+                if input_coll_vel[i].shape != expected_shape:
+                    raise ValueError(f'collocation velocity shape does not match nodal velocity shape: {expected_shape}')
+                
+                self.coll_velocity[i] = -input_coll_vel[i] # velocity relative to body --> sign change
+                self.coll_vel_flag[i] = True
 
         self.num_nodes = num_nodes
+        self.options_dict['num_nodes'] = num_nodes
 
         # self.flow_dict = {
         #     'nodal_velocity': self.grid_velocity,
@@ -190,5 +244,106 @@ class VLM(object):
         # }
         self.flow_properties_flag = True
 
+    def declare_outputs(self, outputs):
+        '''
+        Declare outputs to be saved
+        '''
+        self.output_name_list = outputs
+
+    def __assemble_input_dict__(self):
+
+        nn_geom = self.num_nodes
+        if self.reuse_AIC:
+            nn_geom = 1
+        print(self.num_nodes)
+        # exit()
+        if len(self.meshes[0].shape) == 4: # (nn, nc, ns, 3)
+            self.meshes = self.meshes
+        else:
+            # self.meshes = csdl.expand(
+            #     self.meshes,
+            #     (nn_geom,) + self.points.shape,
+            #     'ij->aij'
+            # )
+            meshes = [
+                csdl.expand(
+                mesh,
+                (nn_geom,) + mesh.shape,
+                'ijk->aijk'
+            ) for mesh in self.meshes
+            ]
+            self.meshes = meshes
+        num_surfaces = len(self.meshes)
+        if self.options_dict['mesh_names'] is None:
+            mesh_names = [f'surface_{i}' for i in range(num_surfaces)]
+        if len(mesh_names) != num_surfaces: # only for custom mesh names
+            raise ValueError('List of mesh names must match the number of surfaces.')
+        self.orig_mesh_dict = {}
+        for i in range(num_surfaces):
+            surf_name = mesh_names[i]
+            self.orig_mesh_dict[surf_name] = {
+                'mesh': self.meshes[i],
+                'nodal_velocity': self.mesh_velocities[i],
+                'coll_vel_flag': self.coll_vel_flag[i],
+                'coll_vel': self.coll_velocity[i]
+            }
+
+        # self.orig_mesh_dict = {
+        #     'points': self.meshes,
+        #     'nodal_velocity': self.grid_velocity,
+        #     'collocation_velocity': self.coll_velocity,
+        #     'coll_vel_flag': self.coll_vel_flag,
+        #     'wake_connectivity': self.wake_connectivity
+        # }
+
     def evaluate(self):
-        pass
+        if not self.flow_properties_flag:
+            self.setup_flow_properties()
+
+        self.__assemble_input_dict__()
+
+        if self.solver_mode == 'steady':
+            vlm_output_dict = steady_vlm_solver(
+                self.orig_mesh_dict,
+                self.options_dict,
+            )
+        elif self.solver_mode == 'unsteady':
+            vlm_output_dict = unsteady_vlm_solver(
+                self.orig_mesh_dict,
+                self.options_dict,
+            )
+
+        output_dict = {}
+        for output_name in self.output_name_list:
+            output_dict[output_name] = vlm_output_dict[output_name]
+
+        return output_dict
+
+    def plot_unsteady(self, meshes, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='panel_method'):
+        num_meshes = len(meshes)
+        mesh_connectivity = []
+        wake_connectivity = []
+        for i in range(num_meshes):
+            ms = meshes[i].shape
+            nt, nc, ns = ms[0], ms[1], ms[2] # num points
+            nt_p, nc_p, ns_p = nt-1, nc-1, ns-1 # num panels
+            surf_mesh_con = np.array([[[
+                j + i*ns,
+                j + (i+1)*ns,
+                j+1 + (i+1)*ns,
+                j+1 + i*ns,
+            ] for j in range(ns-1)] for i in range(nc-1)])
+            mesh_connectivity.append(surf_mesh_con)
+            wake_mesh_con = np.array([[[
+                j + i*ns,
+                j + (i+1)*ns,
+                j+1 + (i+1)*ns,
+                j+1 + i*ns,
+            ] for j in range(ns-1)] for i in range(nt-1)])
+            wake_connectivity.append(wake_mesh_con)
+        
+
+
+        plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, interactive=interactive, camera=camera)
+
+            
