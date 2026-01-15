@@ -103,7 +103,12 @@ def pre_processor(mesh_dict):
         # v3 = nodal_velocity[:, 1:, 1:, :]
         # v4 = nodal_velocity[:, :-1, 1:, :]
 
-        mesh_dict[key]['collocation_velocity'] = 0.75*(v1+v2)/2. + 0.25*(v3+v4)/2.
+        coll_point_velocity = 0.75*(v1+v2)/2. + 0.25*(v3+v4)/2.
+        coll_vel_flag = mesh_dict[key]['coll_vel_flag']
+        if coll_vel_flag:
+            coll_point_velocity += mesh_dict[key]['coll_vel']
+
+        mesh_dict[key]['collocation_velocity'] = coll_point_velocity
         mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v2)/2. + 0.75*(v3+v4)/2.
 
         # computing MAC of surface

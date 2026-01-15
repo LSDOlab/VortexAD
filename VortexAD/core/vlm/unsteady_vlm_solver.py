@@ -51,6 +51,9 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
             mesh_name = mesh_names[i]
             orig_mesh_dict[mesh_name]['mesh'] = ozone_vars.dynamic_parameters[mesh_name]
             orig_mesh_dict[mesh_name]['nodal_velocity'] = ozone_vars.dynamic_parameters[mesh_name+'_vel']
+            coll_vel_flag = orig_mesh_dict[mesh_name]['coll_vel_flag']
+            if coll_vel_flag:
+                orig_mesh_dict[mesh_name]['coll_vel'] = ozone_vars.dynamic_parameters[mesh_name+'_coll_vel']
 
         outputs, d_dt = vlm_ode_function(
             orig_mesh_dict,

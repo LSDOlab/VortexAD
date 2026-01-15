@@ -203,9 +203,9 @@ class VortexLatticeMethod(object):
                 V_vec_rot = V_inf
                 # V_vec_rot = csdl.expand(V_inf, grid_shape, 'ij->iaj')
             
-            # # case where velocity is a tensor of shape (nn, n_points, 3)
-            # elif len(V_inf.shape) == 3:
-            #     grid_velocity = V_inf
+            # case where velocity is a tensor of shape (nn, n_points, 3)
+            elif len(V_inf.shape) == 4:
+                V_vec_nn = V_inf
         
         self.mesh_velocities = []
         for i, mesh in enumerate(self.meshes):
@@ -215,7 +215,8 @@ class VortexLatticeMethod(object):
             if len(mesh.shape) == 3: # mesh is steady
                 mesh_velocity = csdl.expand(-V_vec_nn, (num_nodes,) + mesh.shape, 'ij->iabj')
             elif len(mesh.shape) == 4: # mesh is unsteady
-                mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
+                # mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
+                mesh_velocity = -V_vec_nn
             self.mesh_velocities.append(mesh_velocity)
         
         if isinstance(V_inf, list):
@@ -344,6 +345,7 @@ class VortexLatticeMethod(object):
         
 
 
-        plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, interactive=interactive, camera=camera)
+        plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, 
+                       wake_form=wake_form, interactive=interactive, camera=camera, name=name)
 
             

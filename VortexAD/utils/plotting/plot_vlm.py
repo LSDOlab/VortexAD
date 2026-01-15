@@ -80,7 +80,18 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
                     vps.cmap(cmap, wake_color, on='cells', vmin=min_mu, vmax=max_mu)
 
                 elif wake_form == 'lines':
-                    pass
+                    wpig = wake_points_iter.reshape((i+1, ns, 3))
+                    wdsg = wake_data_surf[:(i)*(nTp)].reshape((i, ns-1))
+                    line_pts = []
+                    line_colors = []
+                    for j in range(i):
+                        line_pts.extend([[wpig[j,ind,:], wpig[j+1,ind,:]] for ind in range(ns)])
+                        
+                        line_colors.append(wdsg[j,0])
+                        line_colors.extend([(wdsg[j,ind]+wdsg[j,ind+1])/2. for ind in range(ns-2)])
+                        line_colors.append(wdsg[j,-1])
+                    vps = Lines(line_pts, lw=3, c='black')
+                    vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
 
                 vp += vps
                 vp += __doc__
