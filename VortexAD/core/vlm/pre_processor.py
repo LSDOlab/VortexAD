@@ -142,6 +142,7 @@ def pre_processor(mesh_dict):
     bound_vec_velocity = csdl.Variable(value=np.zeros((num_nodes, num_tot_panels, 3)))
     bound_vec = csdl.Variable(value=np.zeros((num_nodes, num_tot_panels, 3)))
     panel_corners = csdl.Variable(value=np.zeros((num_nodes, num_tot_panels, 4, 3)))
+    panel_areas = csdl.Variable(value=np.zeros((num_nodes, num_tot_panels)))
 
     cs_panels, ce_panels = 0, 0
     cs_points, ce_points = 0, 0
@@ -203,6 +204,10 @@ def pre_processor(mesh_dict):
             csdl.slice[:,cs_panels:ce_panels,:,:],
             mesh_dict[surf_name]['bound_vortex_panel_corners'].reshape(num_nodes, num_panels, 4, 3)
         )
+        panel_areas = panel_areas.set(
+            csdl.slice[:,cs_panels:ce_panels],
+            mesh_dict[surf_name]['panel_area'].reshape((num_nodes, num_panels))
+        )
 
         cs_panels += num_panels
         cs_points += num_points
@@ -217,6 +222,7 @@ def pre_processor(mesh_dict):
         'bound_vec_velocity': bound_vec_velocity,
         'bound_vec': bound_vec,
         'collocation_velocity': coll_vel,
+        'panel_areas': panel_areas,
 
 
         'TE_node_indices': TE_node_indices,

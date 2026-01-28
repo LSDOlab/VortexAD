@@ -25,11 +25,11 @@ input_dict = {
 vlm = VortexLatticeMethod(
     input_dict
 )
-vlm_outputs = ['surface_CL', 'surface_CDi', 'gamma', 'wake_vortex_mesh', 'net_gamma']
+vlm_outputs = ['surface_lift', 'surface_CL', 'surface_CDi', 'gamma', 'wake_vortex_mesh', 'net_gamma']
 vlm.declare_outputs(vlm_outputs)
 
 outputs = vlm.evaluate()
-
+L = outputs['surface_lift'][0]
 CL = outputs['surface_CL'][0]
 CDi = outputs['surface_CDi'][0]
 gamma = outputs['gamma']
@@ -38,7 +38,7 @@ net_gamma = outputs['net_gamma']
 
 # csdl-jax stuff
 inputs = [pitch]
-outputs = [CL, CDi, gamma, wvm, net_gamma]
+outputs = [L, CL, CDi, gamma, wvm, net_gamma]
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -47,6 +47,6 @@ sim = csdl.experimental.JaxSimulator(
     gpu=False
 )
 sim.run()
-
+L_val = sim[L]
 CL_val = sim[CL]
 CDi_val = sim[CDi]

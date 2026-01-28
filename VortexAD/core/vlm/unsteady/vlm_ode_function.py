@@ -4,7 +4,8 @@ import csdl_alpha as csdl
 from VortexAD.core.vlm.pre_processor import pre_processor
 from VortexAD.core.vlm.unsteady.wake_pre_processor import wake_pre_processor
 from VortexAD.core.vlm.unsteady.gamma_solver import gamma_solver
-from VortexAD.core.vlm.unsteady.post_processor import post_processor
+# from VortexAD.core.vlm.unsteady.post_processor import post_processor
+from VortexAD.core.vlm.unsteady.post_processor import compute_steady_forces
 from VortexAD.core.vlm.unsteady.compute_wake_velocity import compute_wake_velocity
 
 def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, reuse_vars=False):
@@ -24,9 +25,13 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
     x_w = ode_states[0]
     gamma_w = ode_states[1]
 
+    time = solver_options_dict['time'] # dynamic parameter
+    time_in_wake = solver_options_dict['time_in_wake'][0] # removing num_nodes
+
     mesh_dict, vectorized_mesh_dict = pre_processor(orig_mesh_dict)
 
     mesh_dict, vectorized_mesh_dict = wake_pre_processor(
+        solver_options_dict,
         mesh_dict, 
         vectorized_mesh_dict,
         ode_states,
@@ -52,11 +57,20 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
     BC = lin_solve_dict['BC']
     wake_influence = lin_solve_dict['wake_influence']
 
-    output_dict, surface_output_dict = post_processor(mesh_dict, vectorized_mesh_dict, solver_options_dict, gamma, gamma_w)
+    output_dict = compute_steady_forces(mesh_dict, vectorized_mesh_dict, solver_options_dict, gamma, gamma_w)
 
     wake_vel = compute_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w, gamma, gamma_w, free_wake, vc)
 
-    TE_indices = vectorized_mesh_dict['TE_node_indices']
+    # setting up time & vortex core stuff
+    # time_deficit = csdl.Variable(value=np.arange(0,nt*dt,dt)[::-1]*-1) + time
+    # time_deficit = csdl.Variable(value=np.arange(0,nt*dt,dt)*-1) + time
+    # time_in_wake = csdl.maximum(time_deficit, csdl.Variable(value=np.zeros(time_deficit.shape)), rho=100.)
+
+    vc_parameters = solver_options_dict['vc_parameters']
+    bqs = vc_parameters[2]
+
+    # dissipation_deriv = csdl.exp(-bqs*time_in_wake)
+    vde = csdl.exp(-bqs*time_in_wake)  # dissipation effect
 
     dgammaw_dt = csdl.Variable(value=np.zeros(gamma_w.shape))
     dxw_dt = csdl.Variable(value=np.zeros(x_w.shape))
@@ -85,13 +99,34 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
         surf_bd_vortex_mesh = mesh_dict[mesh_name]['bound_vortex_mesh'][0,:] # removing num_nodes
 
         dgammaw_dt_surf = csdl.Variable(value=np.zeros((nt-1, ns-1)))
+        vde_exp = csdl.expand( 
+            vde[:-1], 
+            dgammaw_dt_surf.shape,
+            'i->ia'
+        )
+
+        # dgammaw_dt_surf = dgammaw_dt_surf.set(
+        #     csdl.slice[0,:],
+        #     (gamma_surf[-1,:] - gamma_w_surf[0,:])/dt
+        # )
+        # dgammaw_dt_surf = dgammaw_dt_surf.set(
+        #     csdl.slice[1:,:],
+        #     (gamma_w_surf[:-1,:] - gamma_w_surf[1:,:])/dt
+        # )
+        # dgammaw_dt_surf = dgammaw_dt_surf*vde_exp
+
+        # NOTE: ADD THE DISSIPATION EFFECT TO THE gamma_w_surf TERMS
+        # IN THE ABOVE LINES AT DIFFERENT TIMES 
+
         dgammaw_dt_surf = dgammaw_dt_surf.set(
             csdl.slice[0,:],
-            (gamma_surf[-1,:] - gamma_w_surf[0,:])/dt
+            # (gamma_surf[-1,:] - gamma_w_surf[0,:])/dt
+            (gamma_surf[-1,:] - gamma_w_surf[0,:]*vde_exp[0,:])/dt
         )
         dgammaw_dt_surf = dgammaw_dt_surf.set(
             csdl.slice[1:,:],
-            (gamma_w_surf[:-1,:] - gamma_w_surf[1:,:])/dt
+            # (gamma_w_surf[:-1,:] - gamma_w_surf[1:,:])/dt
+            (gamma_w_surf[:-1,:]*(csdl.exp(-bqs*dt)) - gamma_w_surf[1:,:])/dt
         )
 
         dxw_dt_surf = csdl.Variable(value=np.zeros((nt, ns, 3)))
@@ -119,29 +154,34 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
         wns += num_surf_wake_nodes
 
     d_dt = [dxw_dt, dgammaw_dt]
-    panel_force = output_dict['panel_force']
+    panel_force = output_dict['steady_panel_force']
     net_gamma = output_dict['net_gamma']
     outputs = {
         'gamma': gamma.expand((1,) + gamma.shape, 'i->ai'),
-        'total_CL': output_dict['total_CL'],
-        'total_CDi': output_dict['total_CDi'],
-        'panel_force': panel_force.reshape((1,) + panel_force.shape),
+        # 'total_CL': output_dict['total_CL'],
+        # 'total_CDi': output_dict['total_CDi'],
+        'steady_panel_force': panel_force.reshape((1,) + panel_force.shape),
         'net_gamma': net_gamma.reshape((1,) + net_gamma.shape),
 
         'panel_centers': vectorized_mesh_dict['panel_centers'],
+        'panel_areas': vectorized_mesh_dict['panel_areas'],
+        'force_eval_pts': vectorized_mesh_dict['force_eval_pts'],
+        'bound_vec_velocity': vectorized_mesh_dict['bound_vec_velocity'],
         'panel_normal': vectorized_mesh_dict['panel_normal'],
         'wake_corners': vectorized_mesh_dict['wake_corners'],
+        'wake_core_radius': vectorized_mesh_dict['wake_core_radius'],
 
         'AIC': AIC.reshape((1,) + AIC.shape),
         'AIC_w': AIC_w.reshape((1,) + AIC_w.shape),
         'RHS': RHS.reshape((1,) + RHS.shape),
         'BC': BC.reshape((1,) + BC.shape),
         'wake_influence': wake_influence.reshape((1,) + wake_influence.shape),
+        'dissipation_deriv': vde.reshape((1,)+vde.shape)
     }
 
-    for name in mesh_names:
-        outputs[f'CL_surf_{name}'] = surface_output_dict[name]['CL']
-        outputs[f'CDi_surf_{name}'] = surface_output_dict[name]['CDi']
+    # for name in mesh_names:
+    #     outputs[f'CL_surf_{name}'] = surface_output_dict[name]['CL']
+    #     outputs[f'CDi_surf_{name}'] = surface_output_dict[name]['CDi']
 
     return outputs, d_dt
 

@@ -13,6 +13,8 @@ def compute_AIC(mesh_dict, total_mesh_dict, solver_options_dict, eval_pt='colloc
     elif not ROM: # traditional row batching
         batch_dims = [1]*2+[None]*1
 
+    vc_body = solver_options_dict['core_radius']
+
     # building surface AIC matrices
     # points of influence:
     if eval_pt == 'collocation':
@@ -40,6 +42,7 @@ def compute_AIC(mesh_dict, total_mesh_dict, solver_options_dict, eval_pt='colloc
         body_eval_pts,
         body_panel_normal,
         body_panel_corners,
+        vc=vc_body
     )
     # print(AIC_body_vec.shape)
     # exit()
@@ -48,6 +51,7 @@ def compute_AIC(mesh_dict, total_mesh_dict, solver_options_dict, eval_pt='colloc
 
     # wake computation
     wake_panel_corners = total_mesh_dict['wake_corners']
+    vc_wake = total_mesh_dict['wake_core_radius']
     num_wake_panels = wake_panel_corners.shape[1]
     batch_size_wake = batch_size
     if batch_size is None:
@@ -56,14 +60,14 @@ def compute_AIC(mesh_dict, total_mesh_dict, solver_options_dict, eval_pt='colloc
     AIC_wake_batch_func = csdl.experimental.batch_function(
         compute_aic_batched,
         batch_size=batch_size_wake,
-        batch_dims=batch_dims
+        batch_dims=batch_dims+[None]
     )
 
     AIC_wake_vec = AIC_wake_batch_func(
         body_eval_pts,
         body_panel_normal,
         wake_panel_corners,
-        vc=1.e-6
+        vc_wake
     )
     # print(AIC_wake_vec.shape)
     # exit()
@@ -98,6 +102,15 @@ def compute_aic_batched(coll_point, normal_vec_eval, panel_corners, vc=None):
 
     num_edges = num_corners
 
+    vc_exp_vec = vc
+    if isinstance(vc, csdl.Variable):
+        vc_exp = csdl.expand(vc, (num_nodes, num_eval_pts, num_induced_pts, num_corners), 'ijk->iajk')
+        vc_exp_vec = vc_exp.reshape((num_nodes, num_interactions, num_corners))
+        vc_list = [vc_exp_vec[:,:,i] for i in range(num_edges)]
+    else:
+        vc_list = [vc]*num_edges
+
+
     AIC_vel_vec_list = []
     for  i in range(num_edges-1):
         asdf = compute_vortex_line_ind_vel(
@@ -105,7 +118,7 @@ def compute_aic_batched(coll_point, normal_vec_eval, panel_corners, vc=None):
             panel_corners_exp_vec[:,:,i+1], 
             coll_point_exp_vec[:,:,0], 
             mode='wake', 
-            vc=vc
+            vc=vc_list[i]
         )
         AIC_vel_vec_list.append(asdf)
     asdf = compute_vortex_line_ind_vel(
@@ -113,7 +126,7 @@ def compute_aic_batched(coll_point, normal_vec_eval, panel_corners, vc=None):
         panel_corners_exp_vec[:,:,0], 
         coll_point_exp_vec[:,:,0], 
         mode='wake', 
-        vc=vc
+        vc=vc_list[-1]
     )
     AIC_vel_vec_list.append(asdf)
     AIC_vel_vec = sum(AIC_vel_vec_list)

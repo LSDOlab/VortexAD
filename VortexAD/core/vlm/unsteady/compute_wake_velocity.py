@@ -22,7 +22,7 @@ def compute_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w, gamm
         wake_vel = wake_vel + ind_vel
     return wake_vel
 
-def compute_free_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w, gamma, gamma_w, vc):
+def compute_free_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w, gamma, gamma_w, vc_body):
 
     batch_size_surf = batch_size
     if batch_size is None:
@@ -45,7 +45,7 @@ def compute_free_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w,
         eval_pt,
         panel_corners,
         gamma,
-        vc=vc
+        vc=vc_body # constant core model on the body
     )
 
     batch_size_wake = batch_size
@@ -56,16 +56,17 @@ def compute_free_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w,
         induced_vel_batched,
         # batch_size=batch_size,
         batch_size=batch_size_wake,
-        batch_dims=[1]+[None]*2
+        batch_dims=[1]+[None]*3
     )
 
     wake_panel_corners = vectorized_mesh_dict['wake_corners']
+    vc_wake = vectorized_mesh_dict['wake_core_radius']
 
     wake_ind_vel = wake_induced_vel_batch_func(
         eval_pt,
         wake_panel_corners,
         gamma_w,
-        vc=vc
+        vc_wake # csdl variable with finite core model
     )
     
     ind_vel = body_ind_vel + wake_ind_vel
@@ -93,12 +94,33 @@ def induced_vel_batched(coll_point, panel_corners, gamma, vc):
     panel_corners_exp = csdl.expand(panel_corners, expanded_shape, 'ijkl->iajkl')
     panel_corners_exp_vec = panel_corners_exp.reshape(vectorized_shape)
 
-    num_edges = panel_corners.shape[2]
+    num_edges = num_corners
+
+    vc_exp_vec = vc
+    if isinstance(vc, csdl.Variable):
+        vc_exp = csdl.expand(vc, (num_nodes, num_eval_pts, num_induced_pts, num_corners), 'ijk->iajk')
+        vc_exp_vec = vc_exp.reshape((num_nodes, num_interactions, num_corners))
+        vc_list = [vc_exp_vec[:,:,i] for i in range(num_edges)]
+    else:
+        vc_list = [vc]*num_edges
+
     AIC_vel_vec_list = []
     for i in range(num_edges-1):
-        asdf = compute_vortex_line_ind_vel(panel_corners_exp_vec[:,:,i], panel_corners_exp_vec[:,:,i+1], coll_point_exp_vec[:,:,0], mode='wake', vc=vc)
+        asdf = compute_vortex_line_ind_vel(
+            panel_corners_exp_vec[:,:,i], 
+            panel_corners_exp_vec[:,:,i+1], 
+            coll_point_exp_vec[:,:,0], 
+            mode='wake', 
+            vc=vc_list[i]
+        )
         AIC_vel_vec_list.append(asdf)
-    asdf = compute_vortex_line_ind_vel(panel_corners_exp_vec[:,:,-1], panel_corners_exp_vec[:,:,0], coll_point_exp_vec[:,:,0], mode='wake', vc=vc)
+    asdf = compute_vortex_line_ind_vel(
+        panel_corners_exp_vec[:,:,-1], 
+        panel_corners_exp_vec[:,:,0], 
+        coll_point_exp_vec[:,:,0], 
+        mode='wake', 
+        vc=vc_list[-1]
+    )
     AIC_vel_vec_list.append(asdf)
     AIC_vel_vec = sum(AIC_vel_vec_list)[0,:]
 

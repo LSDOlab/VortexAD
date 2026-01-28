@@ -91,6 +91,8 @@ def compute_vortex_line_ind_vel(p1, p2, p_eval, gamma=1., mode='surface', vc=Non
 
         r1s = r1_norm_exp**2
         r2s = r2_norm_exp**2
+        if isinstance(vc, csdl.Variable):
+            vc = vc.expand(r1.shape, expand_str) # do expansions here
         eps_s = vc**2
 
         f1 = r1r2_cross/(r1s*r2s - rdot_exp**2 + vc*(r1s+r2s-2*r1_norm_exp*r2_norm_exp) + 1.e-12)

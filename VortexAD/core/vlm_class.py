@@ -13,6 +13,7 @@ default_input_dict = {
     'sos': 340.3, # m/s, 
     'alpha': None, # user can provide grid of velocities as well
     'rho': 1.225, # kg/m^3
+    'nu': 1.46e-5,
     'compressibility': False, # PG correction
 
     # mesh
@@ -47,7 +48,8 @@ default_input_dict = {
     'dt': 0.1, # time step (s)
     'nt': 10, # number of time steps
     'store_state_history': True, # flag to store state history
-    'core_radius': 1.e-6, # vortex core radius
+    'core_radius': 1.e-3, # vortex core radius
+    'vc_parameters': [1.25643, 0, 2.5], # alpha, a1, bqs from core model
     'free_wake': False,
 
     # ML airfoil model
@@ -133,7 +135,7 @@ class VortexLatticeMethod(object):
             nn_V_alpha = check_num_nodes(alpha)
 
             if nn_V_inf != nn_V_alpha:
-                if nn_V_inf != 1 and nn_V_inf != 1:
+                if nn_V_inf != 1 and nn_V_alpha != 1:
                     raise ValueError('Error in defining shape of velocity and inflow angle.')
                 
             num_nodes = np.max([nn_V_alpha, nn_V_inf])
@@ -170,7 +172,7 @@ class VortexLatticeMethod(object):
 
                 # grid_velocity = csdl.expand(V_vec_rot, (num_nodes,) + grid_shape, 'ij->iaj')
         elif isinstance(V_inf, list):
-            V_vec_nn = 0.
+            V_vec_nn = np.array([0.])
         else:
             num_nodes = V_inf.shape[0] # FIRST DIMENSION IS ALWAYS NUM NODES
             if not isinstance(V_inf, csdl.Variable):
@@ -216,7 +218,10 @@ class VortexLatticeMethod(object):
                 mesh_velocity = csdl.expand(-V_vec_nn, (num_nodes,) + mesh.shape, 'ij->iabj')
             elif len(mesh.shape) == 4: # mesh is unsteady
                 # mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
-                mesh_velocity = -V_vec_nn
+                if V_vec_nn.shape == 4:
+                    mesh_velocity = -V_vec_nn
+                else:
+                    mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
             self.mesh_velocities.append(mesh_velocity)
         
         if isinstance(V_inf, list):
@@ -320,7 +325,7 @@ class VortexLatticeMethod(object):
 
         return output_dict
 
-    def plot_unsteady(self, meshes, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='panel_method'):
+    def plot_unsteady(self, meshes, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='sample_vlm_ani'):
         num_meshes = len(meshes)
         mesh_connectivity = []
         wake_connectivity = []

@@ -26,8 +26,8 @@ pitch = csdl.Variable(value=np.array([5.]))
 mesh = csdl.Variable(value=mesh_orig).expand((nt, nc, ns, 3), 'ijk->aijk')
 mesh_list = [mesh]
 
-# mesh_dup = csdl.Variable(value=mesh_dup).expand((nt, nc, ns, 3), 'ijk->aijk')
-# mesh_list.append(mesh_dup)
+mesh_dup = csdl.Variable(value=mesh_dup).expand((nt, nc, ns, 3), 'ijk->aijk')
+mesh_list.append(mesh_dup)
 
 input_dict = {
     'V_inf': 10.,
@@ -38,46 +38,46 @@ input_dict = {
 
     'free_wake': True,
     'meshes': mesh_list,
-    'core_radius': 1.e-3
+    'core_radius': 1.e-6
 }
 
 vlm = VortexLatticeMethod(
     input_dict
 )
-vlm_outputs = ['total_lift', 'total_CL', 'total_CDi', 'x_w', 'gamma', 'gamma_w', 'panel_force', 'net_gamma', 'wake_core_radius', 'dissipation_deriv']
-# vlm_outputs = ['CL', 'CDi', 'x_w', 'surf_CL', 'surf_CDi', 'gamma', 'gamma_w']
+# vlm_outputs = ['CL', 'CDi', 'x_w', 'gamma', 'gamma_w', 'panel_force', 'net_gamma', 'wake_core_radius', 'dissipation_deriv']
+vlm_outputs = ['total_CL', 'total_CDi', 'x_w', 'surf_CL', 'surf_CDi', 'gamma', 'gamma_w']
 vlm.declare_outputs(vlm_outputs)
 output_dict = vlm.evaluate()
 
-L = output_dict['total_lift']
 CL = output_dict['total_CL']
 CDi = output_dict['total_CDi']
 x_w = output_dict['x_w']
 
-# surf_CL = output_dict['surf_CL']
-# surf_CDi = output_dict['surf_CDi']
+surf_CL = output_dict['surf_CL']
+surf_CDi = output_dict['surf_CDi']
 
-# surf_0_CL = surf_CL[0]
-# surf_1_CL = surf_CL[1]
+surf_0_CL = surf_CL[0]
+surf_1_CL = surf_CL[1]
 
-# surf_0_CDi = surf_CDi[0]
-# surf_1_CDi = surf_CDi[1]
+surf_0_CDi = surf_CDi[0]
+surf_1_CDi = surf_CDi[1]
 
 gamma = output_dict['gamma']
 gamma_w = output_dict['gamma_w']
-net_gamma = output_dict['net_gamma']
+# net_gamma = output_dict['net_gamma']
 
-panel_force =  output_dict['panel_force']
+# panel_force =  output_dict['panel_force']
 
-core_radius = output_dict['wake_core_radius']
-diss_deriv = output_dict['dissipation_deriv']
+# core_radius = output_dict['wake_core_radius']
+# diss_deriv = output_dict['dissipation_deriv']
 
 inputs = [pitch]
-outputs = [L, CL, CDi, x_w]
-# outputs.extend([surf_0_CL, surf_1_CL, surf_0_CDi, surf_1_CDi])
-outputs.extend([gamma, gamma_w, net_gamma])
+outputs = [CL, CDi, x_w]
+outputs.extend([surf_0_CL, surf_1_CL, surf_0_CDi, surf_1_CDi])
+outputs.extend([gamma, gamma_w])
 outputs.extend(mesh_list)
-outputs.extend([core_radius, diss_deriv])
+# outputs.append(net_gamma)
+# outputs.extend([core_radius, diss_deriv])
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -90,30 +90,31 @@ sim.run()
 end = time.time()
 
 print(f'run + compile time: {end-start} seconds')
-L_val = sim[L]
+
 CL_val = sim[CL]
 CDi_val = sim[CDi]
 x_w_val = sim[x_w]
 gamma_val = sim[gamma]
 gamma_w_val = sim[gamma_w]
-print(L_val)
+
 print(CL_val)
 print(CDi_val)
-exit()
 
 mesh_val_list = [
     sim[mesh], 
-    # sim[mesh_dup]
+    sim[mesh_dup]
 ]
-
+wake_form='lines'
 vlm.plot_unsteady(
     mesh_val_list,
     x_w_val,
     gamma_val,
     gamma_w_val,
+    wake_form=wake_form,
     interactive=False,
-    name='uvlm_wing_sample_ani'
+    name='tandem_wing_ani_' + wake_form
 )
+exit()
 
 40, 0.04
 t_vec = np.linspace(0,40*.04,40)
@@ -128,19 +129,4 @@ if True:
     axs[1].set_xlabel('Time (s)', fontsize=12)
     axs[1].grid()
 
-
-# verifying dissipation
-bqs = 2.5
-time_array = np.arange(0,nt*dt,dt)
-dd_val = np.exp(-bqs*time_array)
-gamma_w_col = np.zeros_like(dd_val)
-for i in range(nt-1):
-    gamma_w_col[i] = gamma_w_val[i+1].reshape(nt-1,ns-1)[:,0][i]
-
-if True:
-    plt.figure()
-    plt.plot(time_array[:-1], dd_val[:-1], label='analytical dissipation')
-    plt.plot(time_array[:-1], gamma_w_col[:-1]/gamma_w_col[0], label='UVLM wake dissipation')
-    plt.legend()
-    plt.grid()
-    plt.show()
+plt.show()

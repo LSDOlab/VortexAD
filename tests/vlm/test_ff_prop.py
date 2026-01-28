@@ -8,8 +8,9 @@ from VortexAD.utils.meshing.gen_prop_mesh import gen_prop_mesh
 import matplotlib.pyplot as plt
 
 V_inf = 10.
-nt, dt = 50, 0.001
-RPM = 1000.
+V_inf = 185.
+nt, dt = 100, 0.001
+RPM = 850.
 RPM2omega = (2*np.pi) / 60.
 omega = RPM * RPM2omega
 
@@ -17,7 +18,7 @@ radius = 2.
 chord = 0.2
 twist = 45.
 num_blades = 2
-nr = 3
+nr = 5
 
 prop_meshes = gen_prop_mesh(
     radius, 
@@ -68,7 +69,7 @@ for i in range(nt):
 
     vel_arm = asdf - ref_point
     nodal_vel_t = np.cross(omega_vector, vel_arm)
-    prop_nodal_velocity[:,i,:] = nodal_vel_t
+    # prop_nodal_velocity[:,i,:] = nodal_vel_t
 
 
 prop_nodal_velocity[:,:,:,:,0] = -V_inf
@@ -85,9 +86,10 @@ coll_vel_list = [csdl.Variable(value=collocation_velocity[i,:]) for i in range(n
 pitch = csdl.Variable(value=np.array([0.]))
 
 input_dict = {
-    'V_inf': 10.,
-    'alpha': pitch,
-    # 'V_inf': mesh_vel_list,
+    # 'V_inf': 10.,
+    # 'alpha': pitch,
+    'V_inf': mesh_vel_list,
+    'collocation_velocity': coll_vel_list,
     'solver_mode': 'unsteady',
     'nt': nt,
     'dt': dt,
@@ -154,7 +156,10 @@ gamma_w_val = sim[gamma_w]
 
 mesh_val_list = [sim[val] for val in mesh_list]
 
-cam = dict(
+wake_form  = 'lines'
+
+# iso
+iso_cam = dict(
     position=(-27.2696, -16.3214, 8.61178),
     focal_point=(1.27338, -0.446573, 2.47714),
     viewup=(0.0807063, 0.229700, 0.969909),
@@ -168,8 +173,31 @@ vlm.plot_unsteady(
     x_w_val,
     gamma_val,
     gamma_w_val,
+    wake_form=wake_form,
     interactive=False,
-    camera=cam,
+    camera=iso_cam,
+    name='prop_ani_iso' + f'_{wake_form}'
+)
+
+# front
+front_cam = dict(
+    position=(-31.8757, 0.0928217, 0.197711),
+    focal_point=(1.27338, -0.446571, 2.47714),
+    viewup=(-0.0685583, 2.62192e-3, 0.997644),
+    roll=89.8498,
+    distance=33.2317,
+    clipping_range=(28.6933, 38.9886),
+)
+
+vlm.plot_unsteady(
+    mesh_val_list,
+    x_w_val,
+    gamma_val,
+    gamma_w_val,
+    wake_form=wake_form,
+    interactive=False,
+    camera=front_cam,
+    name='prop_ani_front' + f'_{wake_form}'
 )
 
 
