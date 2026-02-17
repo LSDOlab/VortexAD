@@ -97,11 +97,16 @@ def unsteady_post_processor(output_dict, solver_options_dict, gamma):
     ref_chord = solver_options_dict['ref_chord']
 
     V_inf_panels = csdl.norm(bd_vec_fs_velocity, axes=(2,))
-    V_inf = csdl.average(V_inf_panels)
+    V_inf = csdl.average(V_inf_panels, axes=(1,))
+    # print(bd_vec_fs_velocity.shape)
+    # print(V_inf_panels.shape)
+    # print(V_inf.shape)
+    # print(total_lift.shape)
+    # exit()
 
     total_CL = total_lift/(0.5*rho*V_inf**2*ref_area)
     total_CDi = total_drag/(0.5*rho*V_inf**2*ref_area)
-    total_CM = total_moment/(0.5*rho*V_inf**2*ref_area*ref_chord)
+    total_CM = total_moment/(0.5*rho*V_inf.expand(total_moment.shape, 'i->ia')**2*ref_area*ref_chord)
 
     output_dict['panel_force'] = panel_force
     output_dict['unsteady_panel_force'] = unsteady_panel_force

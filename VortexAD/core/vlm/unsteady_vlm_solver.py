@@ -50,6 +50,7 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
 
         solver_options_dict['time'] = ozone_vars.dynamic_parameters['time']
         solver_options_dict['time_in_wake'] = ozone_vars.dynamic_parameters['time_in_wake']
+        solver_options_dict['velocity_activation'] = ozone_vars.dynamic_parameters['velocity_activation']
 
         for i in range(num_meshes):
             mesh_name = mesh_names[i]
@@ -133,12 +134,20 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
     ode_problem.add_dynamic_parameter('time', csdl.Variable(value=time_array))
 
     time_in_wake = np.zeros((nt, nt))
+    velocity_activation = np.zeros((nt, nt))
     for i in range(1,nt):
         time_in_wake[i,:i] = time_array[:i]
         # time_in_wake[i,:i] = time_array[1:i+1]
+    
+    for i in range(nt):
+        # velocity_activation[i,:(i+1)] = 1.
+        velocity_activation[i,-(i+1):] = 1.
 
     time_in_wake_var = csdl.Variable(value=time_in_wake)
     ode_problem.add_dynamic_parameter('time_in_wake',time_in_wake_var)
+
+    vel_activation_var = csdl.Variable(value=velocity_activation)
+    ode_problem.add_dynamic_parameter('velocity_activation', vel_activation_var)
 
     nc_list, ns_list = [], []
     ns_panels_list = []

@@ -75,6 +75,8 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
     dgammaw_dt = csdl.Variable(value=np.zeros(gamma_w.shape))
     dxw_dt = csdl.Variable(value=np.zeros(x_w.shape))
 
+    # velocity_activation = solver_options_dict['velocity_activation'][0] # removing num_nodes
+
     bps, bpe = 0, 0
     wps, wpe = 0, 0 # wake panel start/end
     wns, wne = 0, 0 # wake node start/end
@@ -120,14 +122,20 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
 
         dgammaw_dt_surf = dgammaw_dt_surf.set(
             csdl.slice[0,:],
-            # (gamma_surf[-1,:] - gamma_w_surf[0,:])/dt
-            (gamma_surf[-1,:] - gamma_w_surf[0,:]*vde_exp[0,:])/dt
+            (gamma_surf[-1,:] - gamma_w_surf[0,:])/dt
+            # (gamma_surf[-1,:] - gamma_w_surf[0,:]*vde_exp[0,:])/dt
         )
         dgammaw_dt_surf = dgammaw_dt_surf.set(
             csdl.slice[1:,:],
             # (gamma_w_surf[:-1,:] - gamma_w_surf[1:,:])/dt
             (gamma_w_surf[:-1,:]*(csdl.exp(-bqs*dt)) - gamma_w_surf[1:,:])/dt
         )
+
+        # vel_act_surf = csdl.expand(
+        #     velocity_activation[1:],
+        #     (nt-1,ns,3),
+        #     'i->iab'
+        # )
 
         dxw_dt_surf = csdl.Variable(value=np.zeros((nt, ns, 3)))
         dxw_dt_surf = dxw_dt_surf.set(
@@ -137,6 +145,7 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
         dxw_dt_surf = dxw_dt_surf.set(
             csdl.slice[1:,:],
             wake_vel_surf[1:,:] + (x_w_surf[:-1,:] - x_w_surf[1:,:])/dt
+            # wake_vel_surf[1:,:]*vel_act_surf
         )
 
         dgammaw_dt =  dgammaw_dt.set(

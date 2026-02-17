@@ -16,14 +16,20 @@ omega = RPM * RPM2omega
 
 radius = 2.
 chord = 0.2
-twist = 45.
+twist = 30.
 num_blades = 2
 nr = 5
+
+nondim_r = np.linspace(0.2,1,nr)
+pitch = 16
+diam_test = 24
+twist_dist = np.arctan(pitch/(np.pi*diam_test*nondim_r))*180/np.pi
 
 prop_meshes = gen_prop_mesh(
     radius, 
     chord, 
-    twist, 
+    # twist, 
+    twist_dist, 
     num_blades, 
     num_radial=nr, 
     direction='forward',
@@ -98,7 +104,8 @@ input_dict = {
 
     'free_wake': True,
     'meshes': mesh_list,
-    'core_radius': 1.e-6,
+    'core_radius': chord*1e0,
+    # 'core_radius': 1.e-6,
 }
 
 
@@ -111,6 +118,7 @@ vlm_outputs = ['x_w', 'gamma', 'gamma_w']
 vlm_outputs.append('panel_force')
 vlm_outputs.extend(['AIC', 'AIC_w', 'RHS', 'BC', 'wake_influence'])
 vlm_outputs.extend(['panel_centers', 'panel_normal', 'wake_corners'])
+# vlm_outputs.append(['panel_force'])
 vlm.declare_outputs(vlm_outputs)
 output_dict = vlm.evaluate()
 
@@ -156,8 +164,24 @@ gamma_w_val = sim[gamma_w]
 
 mesh_val_list = [sim[val] for val in mesh_list]
 
-wake_form  = 'lines'
+panel_forces = sim[panel_force]
+thrust = np.sum(panel_forces[:,:,0], axis=1)
+rev_per_second = RPM/60.
+CT = thrust/(1.225*(radius*2)**4*rev_per_second**2)
 
+nondim_rev_time = time_vec*rev_per_second
+plt.figure(figsize=(7,5))
+plt.plot(nondim_rev_time, CT)
+plt.grid()
+plt.xlabel('Revolutions', fontsize=15)
+plt.xticks(fontsize=15)
+plt.ylabel(r'$C_T$', fontsize=15)
+plt.yticks(fontsize=15)
+plt.savefig('rotor_CT_vs_rev.pdf')
+plt.show()
+
+wake_form  = 'lines'
+bounds = [-72.65183418851787, -37.32720235791217]
 # iso
 iso_cam = dict(
     position=(-27.2696, -16.3214, 8.61178),
@@ -173,6 +197,7 @@ vlm.plot_unsteady(
     x_w_val,
     gamma_val,
     gamma_w_val,
+    bounds=bounds, 
     wake_form=wake_form,
     interactive=False,
     camera=iso_cam,
@@ -194,6 +219,7 @@ vlm.plot_unsteady(
     x_w_val,
     gamma_val,
     gamma_w_val,
+    bounds=bounds,
     wake_form=wake_form,
     interactive=False,
     camera=front_cam,

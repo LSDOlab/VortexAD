@@ -48,6 +48,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         x_w = ozone_vars.states['x_w']
         mu_w = ozone_vars.states['mu_w']
 
+        solver_options_dict['time'] = ozone_vars.dynamic_parameters['time']
+        solver_options_dict['time_in_wake'] = ozone_vars.dynamic_parameters['time_in_wake']
+
         # mesh_list = []
         # mesh_vel_list = []
         # for i in range(len(mesh)):
@@ -171,6 +174,17 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
         if len(ROM_shape) == 3: # time-varying basis
             ode_problem.add_dynamic_parameter('U', U)
             ode_problem.add_dynamic_parameter('UT', UT)
+
+    time_array = np.arange(0,nt*dt,dt)
+    ode_problem.add_dynamic_parameter('time', csdl.Variable(value=time_array))
+
+    time_in_wake = np.zeros((nt, nt))
+    for i in range(1,nt):
+        time_in_wake[i,:i] = time_array[:i]
+        # time_in_wake[i,:i] = time_array[1:i+1]
+
+    time_in_wake_var = csdl.Variable(value=time_in_wake)
+    ode_problem.add_dynamic_parameter('time_in_wake',time_in_wake_var)
 
     step_vector = np.ones(nt-1)*dt
     ode_problem.set_timespan(ozone.timespans.StepVector(start=0., step_vector=step_vector))

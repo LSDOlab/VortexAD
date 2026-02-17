@@ -19,6 +19,7 @@ default_input_dict = {
     'sos': 340.3, # m/s, 
     'alpha': None, # user can provide grid of velocities as well
     'rho': 1.225, # kg/m^3
+    'nu': 1.46e-5,
     'compressibility': False, # PG correction
     'Cp cutoff': -5., # minimum Cp (numerical reasons)
 
@@ -59,7 +60,8 @@ default_input_dict = {
     'dt': 0.1, # time step (s)
     'nt': 10, # number of time steps
     'store_state_history': True, # flag to store state history
-    'core_radius': 1.e-6, # vortex core radius
+    'core_radius': 1.e-3, # vortex core radius
+    'vc_parameters': [1.25643, 0, 2.5], # alpha, a1, bqs from core model
     'free_wake': False,
 }
 

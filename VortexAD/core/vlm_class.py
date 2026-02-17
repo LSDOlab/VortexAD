@@ -218,7 +218,7 @@ class VortexLatticeMethod(object):
                 mesh_velocity = csdl.expand(-V_vec_nn, (num_nodes,) + mesh.shape, 'ij->iabj')
             elif len(mesh.shape) == 4: # mesh is unsteady
                 # mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
-                if V_vec_nn.shape == 4:
+                if len(V_vec_nn.shape) == 4:
                     mesh_velocity = -V_vec_nn
                 else:
                     mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
@@ -351,6 +351,6 @@ class VortexLatticeMethod(object):
 
 
         plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, 
-                       wake_form=wake_form, interactive=interactive, camera=camera, name=name)
+                       bounds=bounds, wake_form=wake_form, interactive=interactive, camera=camera, name=name)
 
             

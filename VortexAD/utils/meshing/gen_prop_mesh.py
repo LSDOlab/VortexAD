@@ -22,7 +22,7 @@ def gen_prop_mesh(radius, chord, twist, num_blades, direction='up', r0=0.2, num_
     # chord distribution vs. cst chord.
     if isinstance(chord, float):
         chord_dist = np.ones((num_radial,)) * chord
-    elif isinstance(chord, np.array):
+    elif isinstance(chord, np.ndarray):
         num_radial_from_chord = np.prod(chord.shape)
         if np.prod(chord.shape) == 1:
             chord_dist = np.ones((num_radial,)) * chord
@@ -33,14 +33,16 @@ def gen_prop_mesh(radius, chord, twist, num_blades, direction='up', r0=0.2, num_
     # generating twist distribution
     if isinstance(twist, float):
         twist_dist = np.ones(num_radial) * twist
-    elif isinstance(twist, np.array):
+    elif isinstance(twist, np.ndarray):
         if np.prod(twist.shape) > 1:
             twist_dist = twist
         else:
             twist_dist = np.ones(num_radial) * twist
 
+    # print(twist_dist)
+
     if np.prod(twist_dist.shape) != np.prod(chord_dist.shape):
-        ValueError('Mismatched twist and chord shapes.')
+        raise ValueError('Mismatched twist and chord shapes.')
             
 
     mesh_shape = (nc, num_radial, 3)
@@ -116,8 +118,9 @@ def gen_prop_mesh(radius, chord, twist, num_blades, direction='up', r0=0.2, num_
     #     final_mesh = mesh_array
     final_mesh = mesh_array
 
-    if plot == True:
+    if plot:
         plot_prop_mesh(final_mesh)
+        exit()
         
     
     return final_mesh

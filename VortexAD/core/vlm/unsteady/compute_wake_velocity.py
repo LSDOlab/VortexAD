@@ -25,6 +25,8 @@ def compute_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w, gamm
 def compute_free_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w, gamma, gamma_w, vc_body):
 
     batch_size_surf = batch_size
+    eval_pt = x_w.reshape((1,) + x_w.shape)
+    num_wake_pts = eval_pt.shape[1]
     if batch_size is None:
         batch_size_surf = num_wake_pts
 
@@ -36,8 +38,6 @@ def compute_free_wake_velocity(mesh_dict, vectorized_mesh_dict, batch_size, x_w,
     )
 
     coll_point = vectorized_mesh_dict['panel_centers']
-    eval_pt = x_w.reshape((1,) + x_w.shape)
-    num_wake_pts = eval_pt.shape[1]
     panel_corners = vectorized_mesh_dict['panel_corners']
     num_body_panels = panel_corners.shape[1]
 

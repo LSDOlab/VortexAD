@@ -40,6 +40,8 @@ points_orig = mesh_details.points
 points_new = np.copy(points_orig)
 points_new[:,1] *= AR/AR_0
 
+num_points = points_new.shape[0]
+
 k = np.pi/10
 # k = omega*c/2/V_inf
 omega = 2*V_inf*k/c
@@ -64,6 +66,33 @@ def theodorsen_func(k):
     return C, F, G
 
 C_k, F_k, G_k = theodorsen_func(k)
+
+alpha_0 = 5.
+alpha_amp = 5.
+alpha_osc = alpha_0 + alpha_amp*np.sin(omega*t_vector) # deg
+CL_qs = 2*np.pi*alpha_osc*np.pi/180.
+
+RCL = CL_qs*F_k
+ICL = CL_qs*G_k
+
+phase = np.arctan(ICL/RCL)
+
+CL_analytical = 2*np.pi*np.pi/180.*np.norm(C_k)*\
+            (alpha_0 + alpha_amp*np.sin(omega*t_vector+phase))
+
+V_vec = np.array([-V_inf, 0, 0])
+
+alpha_osc_rad = alpha_osc*np.pi/180.
+V_rot_mat = np.zeros((nt,3,3))
+V_rot_mat[:,1,1] = 1.
+V_rot_mat[:,0,0] = V_rot_mat[:,2,2] = np.cos(alpha_osc_rad)
+V_rot_mat[:,2,0] = np.sin(alpha_osc_rad)
+V_rot_mat[:,0,2] = -np.sin(alpha_osc_rad)
+
+V_vec_rot = np.einsum('ijk,ik->ij', V_rot_mat, V_vec)
+point_velocities = np.einsum('ij->iaj', V_vec_rot)
+
+
 
 # Fz_analytical = -np.pi*rho*V_inf*c*C_k.real*dhdt - np.pi*rho*c**2/4*d2hdt2
 Fz_analytical = -np.pi*rho*V_inf*c*abs(C_k)*dhdt - np.pi*rho*c**2/4*d2hdt2

@@ -5,7 +5,7 @@ from vedo import *
 import matplotlib.pyplot as plt
 plt.rcParams.update(plt.rcParamsDefault)
 
-def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, wake_form='grid', 
+def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, bounds=False, wake_form='grid', 
                    interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio'):
     vedo.settings.default_backend = 'vtk'
     nt = surface_data.shape[0]
@@ -24,6 +24,10 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
 
     min_mu = np.min((min_mu_b, min_mu_w))
     max_mu = np.max((max_mu_b, max_mu_w))
+
+    if bounds:
+        min_mu = bounds[0]
+        max_mu = bounds[1]
 
     for i in range(nt):
         print('====')
@@ -103,7 +107,7 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
 
         if camera:
             plot_list = [vps]
-            plot_list.append(axs)
+            # plot_list.append(axs)
             show(plot_list, camera=camera, axes=False, interactive=interactive)
             # vp.show(axs, camera=camera, axes=False, interactive=interactive)  # render the scene
         elif side_view:

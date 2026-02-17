@@ -80,7 +80,10 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     #     edge[1] + i*ns,
     # ] for i in range(nt-1)] for edge in TE_edges_zeroed])
 
-    wake_mesh_dict = wake_geometry(num_nodes, orig_mesh_dict, x_w, wake_connectivity)
+    time = solver_options_dict['time'] # dynamic parameter
+    time_in_wake = solver_options_dict['time_in_wake'][0] # removing num_nodes
+
+    wake_mesh_dict = wake_geometry(num_nodes, orig_mesh_dict, solver_options_dict, x_w, wake_connectivity)
     wake_mesh_dict['wake_connectivity'] = wake_connectivity
 
     print('running pre-processing')
@@ -157,6 +160,14 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     # free wake computation 
     wake_vel, wake_vel_vars = compute_wake_velocity(mesh_dict, wake_mesh_dict, partition_size, mu, sigma, mu_w, free_wake=free_wake, vc=vc)
 
+    # wake dissipation and vortex core stuff
+    vc_parameters = solver_options_dict['vc_parameters']
+    bqs = vc_parameters[2]
+
+    # dissipation_deriv = csdl.exp(-bqs*time_in_wake)
+    vde = csdl.exp(-bqs*time_in_wake)  # dissipation effect
+
+
     # compute derivatives
     upper_TE_cell_ind = mesh_dict['upper_TE_cells']
     lower_TE_cell_ind = mesh_dict['lower_TE_cells']
@@ -166,13 +177,21 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
 
     mu_wake = mu_w[0,:].reshape(wake_connectivity.shape[:2])
 
+    vde_exp = csdl.expand(
+        vde[:-1],
+        dmuw_dt.shape,
+        'i->aib'
+    )
+
     dmuw_dt = dmuw_dt.set(
         csdl.slice[0,0,:],
         (delta_mu_TE[0,:] - mu_wake[0,:])/dt
+        # (delta_mu_TE[0,:] - mu_wake[0,:]*vde_exp[0,0,:])/dt
     )
     dmuw_dt = dmuw_dt.set(
         csdl.slice[0,1:,:],
         (mu_wake[:-1,:]-mu_wake[1:,:])/dt
+        # (mu_wake[:-1,:]*(csdl.exp(-bqs*dt))-mu_wake[1:,:])/dt
         # (mu_wake[1:,:]-mu_wake[:-1,:])/dt
     )
     

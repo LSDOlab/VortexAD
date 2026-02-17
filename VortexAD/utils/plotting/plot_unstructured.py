@@ -190,7 +190,7 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
             vp.show(axs, elevation=-90, azimuth=0, roll=0,
                     axes=False, interactive=interactive)  # render the scene
         else:
-            vp.show(axs, elevation=-45, azimuth=-45, roll=45,
+            vp.show(elevation=-45, azimuth=-45, roll=45,
                     axes=False, interactive=interactive)  # render the scene
         video.add_frame()  # add individual frame
 

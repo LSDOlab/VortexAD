@@ -37,7 +37,7 @@ def compute_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w
 
     return wake_vel, wake_vel_vars
 
-def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w, vc):
+def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma, mu_w, vc_body):
     x_w = wake_mesh_dict['wake_mesh']
     num_nodes = x_w.shape[0]
     num_wake_pts = x_w.shape[1]
@@ -59,7 +59,7 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
         surf_induced_vel_batched,
         # batch_size=batch_size,
         batch_size=batch_size_surf,
-        batch_dims=[1]+[None]*11
+        batch_dims=[1]+[None]*10
     )
 
     x_w = wake_mesh_dict['wake_mesh']
@@ -98,7 +98,7 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
             SM,
             mu_cell_type,
             sigma_cell_type,
-            vc
+            vc=vc_body
         )
         # print('===')
         # print(AIC_sigma.shape)
@@ -120,16 +120,17 @@ def compute_free_wake_velocity(mesh_dict, wake_mesh_dict, batch_size, mu, sigma,
         wake_induced_vel_batched,
         # batch_size=batch_size,
         batch_size=batch_size_wake,
-        batch_dims=[1]+[None]*2
+        batch_dims=[1]+[None]*3
     )
 
     panel_corners_w = wake_mesh_dict['panel_corners'] # (nn, np_w, 4, 3)
+    vc_wake = wake_mesh_dict['wake_core_radius']
 
     wake_ind_vel = wake_induced_vel_batch_func(
         x_w, 
         panel_corners_w,
         mu_w,
-        vc=vc
+        vc_wake
     )
 
     ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel
@@ -281,12 +282,34 @@ def wake_induced_vel_batched(coll_point, panel_corners, mu_w, vc):
     panel_corners_exp = csdl.expand(panel_corners, expanded_shape, 'ijkl->iajkl')
     panel_corners_exp_vec = panel_corners_exp.reshape(vectorized_shape)
 
-    num_edges = panel_corners.shape[2]
+    num_edges = num_corners
+    # num_edges = panel_corners.shape[2]
+
+    vc_exp_vec = vc
+    if isinstance(vc, csdl.Variable):
+        vc_exp = csdl.expand(vc, (num_nodes, num_eval_pts, num_induced_pts, num_corners), 'ijk->iajk')
+        vc_exp_vec = vc_exp.reshape((num_nodes, num_interactions, num_corners))
+        vc_list = [vc_exp_vec[:,:,i] for i in range(num_edges)]
+    else:
+        vc_list = [vc]*num_edges
+
     AIC_mu_wake_list = []
     for i in range(num_edges-1):
-        asdf = compute_vortex_line_ind_vel(panel_corners_exp_vec[:,:,i], panel_corners_exp_vec[:,:,i+1], coll_point_exp_vec[:,:,0], mode='wake', vc=vc)
+        asdf = compute_vortex_line_ind_vel(
+            panel_corners_exp_vec[:,:,i], 
+            panel_corners_exp_vec[:,:,i+1], 
+            coll_point_exp_vec[:,:,0], 
+            mode='wake', 
+            vc=vc_list[i]
+        )
         AIC_mu_wake_list.append(asdf)
-    asdf = compute_vortex_line_ind_vel(panel_corners_exp_vec[:,:,-1], panel_corners_exp_vec[:,:,0], coll_point_exp_vec[:,:,0], mode='wake', vc=vc)
+    asdf = compute_vortex_line_ind_vel(
+        panel_corners_exp_vec[:,:,-1], 
+        panel_corners_exp_vec[:,:,0], 
+        coll_point_exp_vec[:,:,0], 
+        mode='wake', 
+        vc=vc_list[-1]
+    )
     AIC_mu_wake_list.append(asdf)
     AIC_mu_wake_vec = sum(AIC_mu_wake_list)
 

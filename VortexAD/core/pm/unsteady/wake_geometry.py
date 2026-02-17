@@ -1,11 +1,12 @@
 import numpy as np
 import csdl_alpha as csdl
 
-def wake_geometry(num_nodes, mesh_dict, wake_points, wake_connectivity):
+def wake_geometry(num_nodes, mesh_dict, solver_options_dict, wake_points, wake_connectivity):
     num_wake_pts = wake_points.shape[1]
     nt = wake_connectivity.shape[0]+1
     nc_w = nt
     num_TE_edges = wake_connectivity.shape[1]
+    TE_node_indices = mesh_dict['TE_node_indices']
     num_wake_panels = (nc_w-1)*num_TE_edges
     wake_mesh_dict = {}
 
@@ -95,5 +96,28 @@ def wake_geometry(num_nodes, mesh_dict, wake_points, wake_connectivity):
     wake_mesh_dict['S'] = S
     wake_mesh_dict['SL'] = SL
     wake_mesh_dict['SM'] = SM
+
+    rc0 = solver_options_dict['core_radius']
+    nu = solver_options_dict['nu']
+    time_in_wake = solver_options_dict['time_in_wake'][0,:] # removing num_nodes
+    vc_parameters = solver_options_dict['vc_parameters']
+    alpha = vc_parameters[0]
+    a1 = vc_parameters[1]
+    bqs = vc_parameters[2]
+
+    gamma_dummy = 0 # removing dependence from gamma
+    delta_nu = nu + a1*gamma_dummy
+
+    rc = (rc0**2 + 4*alpha*delta_nu*time_in_wake)**0.5
+
+    rc_exp = csdl.expand(rc, (num_nodes, nt, num_TE_edges), 'i->aib')
+
+    vortex_core_radius = csdl.Variable(value=np.zeros(panel_corners.shape[:-1]))
+    vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,0], rc_exp[:,:-1,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 0 to 1 based on wake corners above
+    vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,1], rc_exp[:,1:,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 1 to 2 based on wake corners above
+    vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,2], rc_exp[:,1:,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 2 to 3 based on wake corners above
+    vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,3], rc_exp[:,1:,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 3 to 0 based on wake corners above
+    # NOTE: check the ordering in the values above, might not be the correct direction
+    wake_mesh_dict['wake_core_radius'] = vortex_core_radius
 
     return wake_mesh_dict
