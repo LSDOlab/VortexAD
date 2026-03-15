@@ -161,6 +161,7 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     wake_vel, wake_vel_vars = compute_wake_velocity(mesh_dict, wake_mesh_dict, partition_size, mu, sigma, mu_w, free_wake=free_wake, vc=vc)
 
     # wake dissipation and vortex core stuff
+    dissipation_flag = solver_options_dict['dissipation']
     vc_parameters = solver_options_dict['vc_parameters']
     bqs = vc_parameters[2]
 
@@ -171,50 +172,87 @@ def panel_code_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_sta
     # compute derivatives
     upper_TE_cell_ind = mesh_dict['upper_TE_cells']
     lower_TE_cell_ind = mesh_dict['lower_TE_cells']
-    delta_mu_TE = mu[:,upper_TE_cell_ind] - mu[:,lower_TE_cell_ind]
-    dxw_dt = csdl.Variable(value=np.zeros((num_nodes, tot_wake_pts, 3)))
-    dmuw_dt = csdl.Variable(value=np.zeros((num_nodes,) + wake_connectivity.shape[:-1]))
+    delta_mu_TE = mu[0,upper_TE_cell_ind] - mu[0,lower_TE_cell_ind]
+    # dxw_dt = csdl.Variable(value=np.zeros((num_nodes, tot_wake_pts, 3)))
+    # dmuw_dt = csdl.Variable(value=np.zeros((num_nodes,) + wake_connectivity.shape[:-1]))
+
+    velocity_activation = solver_options_dict['velocity_activation'][0] # removing num_nodes
+    kutta_activation = solver_options_dict['kutta_activation'][0] # removing num_nodes
+    if dissipation_flag:
+        dissipation_activation = solver_options_dict['dissipation_activation'][0] # removing num_nodes
 
     mu_wake = mu_w[0,:].reshape(wake_connectivity.shape[:2])
-
-    vde_exp = csdl.expand(
-        vde[:-1],
-        dmuw_dt.shape,
-        'i->aib'
-    )
-
-    dmuw_dt = dmuw_dt.set(
-        csdl.slice[0,0,:],
-        (delta_mu_TE[0,:] - mu_wake[0,:])/dt
-        # (delta_mu_TE[0,:] - mu_wake[0,:]*vde_exp[0,0,:])/dt
-    )
-    dmuw_dt = dmuw_dt.set(
-        csdl.slice[0,1:,:],
-        (mu_wake[:-1,:]-mu_wake[1:,:])/dt
-        # (mu_wake[:-1,:]*(csdl.exp(-bqs*dt))-mu_wake[1:,:])/dt
-        # (mu_wake[1:,:]-mu_wake[:-1,:])/dt
-    )
-    
     x_w_grid = x_w.reshape((nt, ns, 3))
     wake_vel_grid = wake_vel.reshape((nt, ns, 3))
 
-    dxw_dt = wake_vel 
-
-    dxw_dt_grid = csdl.Variable(value=np.zeros(x_w_grid.shape))
-    # dxw_dt_grid = dxw_dt_grid.set(
-    #     csdl.slice[0,:,],
-    #     # wake_vel_grid[0,:,:]
-    #     (TE[0] - x_w_grid[0,:,:])/dt # [0] on TE is to remove num_nodes dimension at the front
-    #     # wake_vel_grid[0,:,:] + (x_w_grid[0,:,:] - TE[0])/dt
+    # # OLD DERIVATIVES
+    # vde_exp = csdl.expand(
+        # vde[:-1],
+        # dmuw_dt.shape,
+        # 'i->aib'
     # )
-    dxw_dt_grid = dxw_dt_grid.set(
-        csdl.slice[1:,:,:],
-        wake_vel_grid[1:,:,:] + (x_w_grid[:-1,:,:] - x_w_grid[1:,:,:])/dt
-        # wake_vel_grid[1:,:,:] + (x_w_grid[1:,:,:] - x_w_grid[:-1,:,:])/dt
-    )
+    # dmuw_dt = dmuw_dt.set(
+    #     csdl.slice[0,0,:],
+    #     (delta_mu_TE[0,:] - mu_wake[0,:])/dt
+    #     # (delta_mu_TE[0,:] - mu_wake[0,:]*vde_exp[0,0,:])/dt
+    # )
+    # dmuw_dt = dmuw_dt.set(
+    #     csdl.slice[0,1:,:],
+    #     (mu_wake[:-1,:]-mu_wake[1:,:])/dt
+    #     # (mu_wake[:-1,:]*(csdl.exp(-bqs*dt))-mu_wake[1:,:])/dt
+    #     # (mu_wake[1:,:]-mu_wake[:-1,:])/dt
+    # )
 
-    dmuw_dt = dmuw_dt.reshape((tot_wake_panels,))
-    dxw_dt = dxw_dt_grid.reshape((tot_wake_pts, 3))
+    # dxw_dt_grid = csdl.Variable(value=np.zeros(x_w_grid.shape))
+    # # dxw_dt_grid = dxw_dt_grid.set(
+    # #     csdl.slice[0,:,],
+    # #     # wake_vel_grid[0,:,:]
+    # #     (TE[0] - x_w_grid[0,:,:])/dt # [0] on TE is to remove num_nodes dimension at the front
+    # #     # wake_vel_grid[0,:,:] + (x_w_grid[0,:,:] - TE[0])/dt
+    # # )
+    # dxw_dt_grid = dxw_dt_grid.set(
+    #     csdl.slice[1:,:,:],
+    #     wake_vel_grid[1:,:,:] + (x_w_grid[:-1,:,:] - x_w_grid[1:,:,:])/dt
+    #     # wake_vel_grid[1:,:,:] + (x_w_grid[1:,:,:] - x_w_grid[:-1,:,:])/dt
+    # )
+
+    # NEW DERIVATIVES
+    dmuw_dt_surf_shape = (nt-1, ns-1)
+    KC_deriv = delta_mu_TE/dt
+    KC_deriv_exp = csdl.expand(
+        KC_deriv,
+        dmuw_dt_surf_shape,
+        'a->ia'
+    )
+    KC_activation = csdl.expand(
+        kutta_activation,
+        dmuw_dt_surf_shape,
+        'i->ia'
+    )
+    dmuw_dt_surf_no_diss = KC_deriv_exp*KC_activation
+    dmuw_dt_surf = dmuw_dt_surf_no_diss
+    
+    if dissipation_flag:
+
+        diss_activation_exp = csdl.expand(
+            dissipation_activation,
+            dmuw_dt_surf_no_diss.shape,
+            'i->ia'
+        )
+        # dissipation_deriv = diss_activation_exp*(csdl.exp(-bqs*dt)-1)*gamma_w_surf/dt
+        dissipation_deriv = diss_activation_exp*mu_wake*(-bqs)
+
+        dmuw_dt_surf += dissipation_deriv
+
+    vel_act_surf = csdl.expand(
+        velocity_activation,
+        (nt,ns,3),
+        'i->iab'
+    )
+    dxw_dt_surf = wake_vel_grid*vel_act_surf
+
+    dmuw_dt = dmuw_dt_surf.reshape((tot_wake_panels,))
+    dxw_dt = dxw_dt_surf.reshape((tot_wake_pts, 3))
     d_dt = [dxw_dt, dmuw_dt]
 
     outputs = {

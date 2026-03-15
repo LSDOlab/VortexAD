@@ -20,6 +20,7 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     drag_type           = solver_options_dict['drag_type']
     free_wake           = solver_options_dict['free_wake']
     ROM                 = solver_options_dict['ROM']
+    dissipation_flag    = solver_options_dict['dissipation']
 
     coll_vel_flag       = orig_mesh_dict['coll_vel_flag']
     coll_vel            = orig_mesh_dict['collocation_velocity']
@@ -50,6 +51,10 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
 
         solver_options_dict['time'] = ozone_vars.dynamic_parameters['time']
         solver_options_dict['time_in_wake'] = ozone_vars.dynamic_parameters['time_in_wake']
+        solver_options_dict['velocity_activation'] = ozone_vars.dynamic_parameters['velocity_activation']
+        solver_options_dict['kutta_activation'] = ozone_vars.dynamic_parameters['kutta_activation']
+        if dissipation_flag:
+            solver_options_dict['dissipation_activation'] = ozone_vars.dynamic_parameters['dissipation_activation']
 
         # mesh_list = []
         # mesh_vel_list = []
@@ -144,7 +149,9 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     if TE_pts.shape[0] == 1:
         x_w_0 = csdl.expand(TE_pts[0,:], TE_pts.shape[1:], 'ij->aij')
     else:
-        x_w_0 = TE_pts.reshape((np.prod(TE_pts.shape[:2]),3))
+        # x_w_0 = TE_pts.reshape((np.prod(TE_pts.shape[:2]),3))
+        x_w_0 = TE_pts[::-1,:,:].reshape((np.prod(TE_pts.shape[:2]),3))
+        # NOTE: this reversal is to reorder the initial condition points for actuating geometries
         # x_w_0_shift = csdl.Variable(value=np.zeros(x_w_0.shape))
         # x_w_0_shift = x_w_0_shift.set(
         #     csdl.slice[:,0], value=0.0001
@@ -180,11 +187,36 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
 
     time_in_wake = np.zeros((nt, nt))
     for i in range(1,nt):
-        time_in_wake[i,:i] = time_array[:i]
+        time_in_wake[i,-i:] = time_array[1:(i+1)]
         # time_in_wake[i,:i] = time_array[1:i+1]
+
+    velocity_activation = np.zeros((nt, nt))
+    for i in range(nt):
+        # velocity_activation[i,:(i+1)] = 1.
+        velocity_activation[i,-(i+1):] = 1.
+
+    kutta_activation = np.zeros((nt, nt-1))
+    for i in range(0,nt-1):
+        kutta_activation[i,-(i+1)] = 1.
 
     time_in_wake_var = csdl.Variable(value=time_in_wake)
     ode_problem.add_dynamic_parameter('time_in_wake',time_in_wake_var)
+
+    vel_activation_var = csdl.Variable(value=velocity_activation)
+    ode_problem.add_dynamic_parameter('velocity_activation', vel_activation_var)
+
+    kutta_activation_var = csdl.Variable(value=kutta_activation)
+    ode_problem.add_dynamic_parameter('kutta_activation', kutta_activation_var)
+
+    if dissipation_flag:
+        dissipation_activation = np.zeros((nt, nt-1))
+        for i in range(1,nt):
+            dissipation_activation[i,-i:] = 1
+            # dissipation_activation[i,:] = diss_val
+        dissipation_activation_var = csdl.Variable(value=dissipation_activation)
+        ode_problem.add_dynamic_parameter('dissipation_activation', dissipation_activation_var)
+
+
 
     step_vector = np.ones(nt-1)*dt
     ode_problem.set_timespan(ozone.timespans.StepVector(start=0., step_vector=step_vector))

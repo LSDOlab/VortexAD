@@ -79,6 +79,9 @@ def gen_prop_mesh(radius, chord, twist, num_blades, direction='up', r0=0.2, num_
         mesh_section_twisted = np.einsum('ij,aj->ai', sec_rot_mat, mesh_section-rotation_point) + rotation_point
 
         mesh_blade[:,i,:] = mesh_section_twisted
+    
+    # mesh_blade = mesh_blade[:,::-1,:] # flipping spanwise direction so that collocation points are closer to leading edge
+    # mesh_blade = mesh_blade[::-1,:,:] # flipping chordwise direction so that collocation points are closer to leading edge
 
     mesh_array = np.zeros((num_blades,) + mesh_shape)
     rotation_angles = np.linspace(0, 2*np.pi, num_blades+1)[:-1]
@@ -120,7 +123,7 @@ def gen_prop_mesh(radius, chord, twist, num_blades, direction='up', r0=0.2, num_
 
     if plot:
         plot_prop_mesh(final_mesh)
-        exit()
+        # exit()
         
     
     return final_mesh
@@ -130,7 +133,7 @@ def gen_prop_mesh(radius, chord, twist, num_blades, direction='up', r0=0.2, num_
 
 def plot_prop_mesh(mesh):
     import vedo
-    from vedo import Axes, Plotter, Mesh, show
+    from vedo import Axes, Plotter, Mesh, show, NormalLines, Lines
     vedo.settings.default_backend = 'vtk'
     axs = Axes(
         xrange=(0,3),
@@ -158,12 +161,24 @@ def plot_prop_mesh(mesh):
 
     for i in range(nb):
         mesh_points = mesh[i,:]
+        reshaped_mesh_points = np.reshape(mesh_points, (-1,3))
         vps = Mesh(
-            [np.reshape(mesh_points, (-1,3)), connectivity],
+            [reshaped_mesh_points, connectivity],
             c='gray',
             alpha=1.
         ).linecolor('black')
+        vps.compute_normals(points=True)
         vp += vps
+
+        point_normals=vps.vertex_normals
+
+        asdf = reshaped_mesh_points + point_normals
+        lines = Lines(reshaped_mesh_points, asdf)
+        vp += lines
+
+
+        # asdf = NormalLines(vps, on='cells', scale=5).linecolor('red')
+        # vp += asdf
 
     show([vps, axs], elevation=-45, azimuth=-45, roll=45,
                     axes=False, interactive=True)  # render the scene

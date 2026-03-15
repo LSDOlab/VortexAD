@@ -4,8 +4,11 @@ import time
 
 from VortexAD import VortexLatticeMethod
 from VortexAD.utils.meshing.gen_prop_mesh import gen_prop_mesh
+from VortexAD.utils.meshing.gen_vlm_mesh import gen_vlm_mesh
 
 import matplotlib.pyplot as plt
+
+# flow properties + 
 
 V_inf = 10.
 V_inf = 185.
@@ -14,11 +17,28 @@ RPM = 850.
 RPM2omega = (2*np.pi) / 60.
 omega = RPM * RPM2omega
 
+# wing mesh
+ns_w, nc_w = 15, 5
+AR = 10
+c = 1
+b = AR*c
+wing_prop_offset = 1.
+# b, c = 10., 1.
+mesh_orig = gen_vlm_mesh(ns_w, nc_w, b, c)
+mesh_orig = mesh_orig + np.array([wing_prop_offset, 0., 0.]) # translating the wing to avoid overlap with propeller
+wing_mesh = np.zeros((nt, nc_w, ns_w, 3))
+for i in range(nt):
+    wing_mesh[i,:,:,:] = mesh_orig
+
+wing_nodal_velocity = np.zeros((nt, nc_w, ns_w, 3))
+wing_nodal_velocity[:,:,:,0] = -V_inf
+
+# prop mesh
 radius = 2.
 chord = 0.2
-twist = 0.
+twist = 30.
 num_blades = 2
-nr = 5
+nr = 11
 
 nondim_r = np.linspace(0.2,1,nr)
 pitch = 16
@@ -26,11 +46,11 @@ diam_test = 24
 twist_dist = np.arctan(pitch/(np.pi*diam_test*nondim_r))*180/np.pi
 
 prop_meshes = gen_prop_mesh(
-    radius=radius, 
-    chord=chord, 
-    # twist=twist, 
-    twist=twist_dist, 
-    num_blades=num_blades, 
+    radius, 
+    chord, 
+    # twist, 
+    twist_dist, 
+    num_blades, 
     num_radial=nr, 
     direction='forward',
     plot=False
@@ -43,7 +63,7 @@ prop_nodal_velocity = np.zeros((num_blades, nt) + pms)
 collocation_velocity = np.zeros((num_blades, nt, pms[0]-1, pms[1]-1, 3))
 time_vec = np.linspace(0, nt*dt, nt)
 omega_vector = -omega*np.array([1., 0., 0.])
-# omega_vector = omega*np.array([1., 0., 0.])
+# omega_vector = omega*np.array([0., 0., 1.])
 for i in range(nt):
     dtheta = time_vec[i] * omega
 
@@ -53,8 +73,12 @@ for i in range(nt):
     rot_mat[1,1] = rot_mat[2,2] = np.cos(dtheta)
     rot_mat[1,2] = np.sin(dtheta)
     rot_mat[2,1] = -np.sin(dtheta)
-    # rot_mat[1,2] = -np.sin(dtheta)
-    # rot_mat[2,1] = np.sin(dtheta)
+
+    # rot_mat = np.zeros((3,3))
+    # rot_mat[2,2] = 1
+    # rot_mat[0,0] = rot_mat[1,1] = np.cos(dtheta)
+    # rot_mat[0,1] = -np.sin(dtheta)
+    # rot_mat[1,0] = np.sin(dtheta)
 
     asdf = np.einsum('ij,abcj->abci', rot_mat, prop_meshes)
 
@@ -69,8 +93,9 @@ for i in range(nt):
     
     collocation_velocity[:,i,:] = coll_vel_t
 
-    vel_arm = asdf - ref_point
-    nodal_vel_t = np.cross(omega_vector, vel_arm)
+    # nodal velocity (don't need to do this bc we did it on collocation points)
+    # vel_arm = asdf - ref_point
+    # nodal_vel_t = np.cross(omega_vector, vel_arm)
     # prop_nodal_velocity[:,i,:] = nodal_vel_t
 
 
@@ -82,8 +107,11 @@ recorder = csdl.Recorder(inline=False)
 recorder.start()
 
 mesh_list = [csdl.Variable(value=actuated_prop_meshes[i,:]) for i in range(num_blades)]
+mesh_list.append(csdl.Variable(value=wing_mesh))
 mesh_vel_list = [csdl.Variable(value=prop_nodal_velocity[i,:]) for i in range(num_blades)]
+mesh_vel_list.append(csdl.Variable(value=wing_nodal_velocity))
 coll_vel_list = [csdl.Variable(value=collocation_velocity[i,:]) for i in range(num_blades)]
+coll_vel_list.append(csdl.Variable(value=np.zeros((nt, nc_w-1, ns_w-1, 3))))
 
 pitch = csdl.Variable(value=np.array([0.]))
 
@@ -101,7 +129,6 @@ input_dict = {
     'free_wake': True,
     'meshes': mesh_list,
     'core_radius': chord*1e0,
-    'dissipation': True,
     # 'core_radius': 1.e-6,
 }
 
@@ -116,6 +143,7 @@ vlm_outputs.append('panel_force')
 vlm_outputs.extend(['AIC', 'AIC_w', 'RHS', 'BC', 'wake_influence'])
 vlm_outputs.extend(['panel_centers', 'panel_normal', 'wake_corners'])
 # vlm_outputs.append(['panel_force'])
+vlm_outputs.append('surf_panel_L')
 vlm.declare_outputs(vlm_outputs)
 output_dict = vlm.evaluate()
 
@@ -128,6 +156,9 @@ panel_force = output_dict['panel_force']
 panel_center = output_dict['panel_centers']
 panel_normal = output_dict['panel_normal']
 wake_corners = output_dict['wake_corners']
+
+surf_panel_L = output_dict['surf_panel_L']
+wing_panel_L = surf_panel_L[-1] # props then wing
 
 AIC = output_dict['AIC']
 AIC_w = output_dict['AIC_w']
@@ -142,6 +173,7 @@ outputs = [x_w, gamma, gamma_w]
 outputs.append(panel_force)
 outputs.extend([AIC, AIC_w, RHS, BC, wake_influence])
 outputs.extend([panel_normal, panel_center, wake_corners])
+outputs.append(wing_panel_L)
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -155,12 +187,6 @@ end = time.time()
 
 print(f'run + compile time: {end-start} seconds')
 
-# start = time.time()
-# sim.run()
-# end = time.time()
-
-# print(f'run time: {end-start} seconds')
-
 x_w_val = sim[x_w]
 gamma_val = sim[gamma]
 gamma_w_val = sim[gamma_w]
@@ -173,6 +199,7 @@ rev_per_second = RPM/60.
 CT = thrust/(1.225*(radius*2)**4*rev_per_second**2)
 
 nondim_rev_time = time_vec*rev_per_second
+# thrust coefficient vs time
 plt.figure(figsize=(7,5))
 plt.plot(nondim_rev_time, CT)
 plt.grid()
@@ -180,25 +207,56 @@ plt.xlabel('Revolutions', fontsize=15)
 plt.xticks(fontsize=15)
 plt.ylabel(r'$C_T$', fontsize=15)
 plt.yticks(fontsize=15)
-plt.savefig('prop_CT_vs_rev.pdf')
+plt.savefig(f'prop_wing_CT_vs_rev_nr_{nr}_nt_{nt}.pdf')
 plt.show()
 
+# spanwise lift distribution
+wpl = sim[wing_panel_L].reshape((nt, nc_w-1, ns_w-1))
+wpl_span = wpl.sum(axis=1)
+wing_LE_y = (mesh_orig[0,:-1,1] + mesh_orig[0,1:,1])/2 # LE y-coordinates of panel centers
+import matplotlib.animation as animation
+fig, ax = plt.subplots(figsize=(7,5))
+line = ax.plot(wing_LE_y, wpl_span[0,:])
+ax.set(
+    xlim=[np.min(wing_LE_y), np.max(wing_LE_y)], 
+    ylim=[np.min(wpl_span), np.max(wpl_span)], 
+    xlabel='y', 
+    ylabel='spanwise lift'
+)
+ax.invert_xaxis()
+ax.grid()
+def update(frame):
+    line[0].set_ydata(wpl_span[frame,:])
+    return line
+
+ani = animation.FuncAnimation(fig, update, frames=nt, interval=1/10*1000, repeat=False)
+ani.save(f'prop_wing_spanwise_lift_nr_{nr}_nt_{nt}.mp4', writer='ffmpeg', fps=10)
+# plt.figure(figsize=(7,5))
+# plt.plot(wing_LE_y, wpl_span[-1,:])
+
+
+plt.show()
+# exit()
+
 wake_form  = 'lines'
-# bounds for nr=5
-# bounds = [-72.65183418851787, -47.69002929478038]
-
-# bounds for nr=11
-bounds = [-108.98585845736565, -53.929196894121624]
-
-
+bounds = [-72.65183418851787, 31.4404123920854]
 # iso
+# iso_cam = dict(
+#     position=(-27.2696, -16.3214, 8.61178),
+#     focal_point=(1.27338, -0.446573, 2.47714),
+#     viewup=(0.0807063, 0.229700, 0.969909),
+#     roll=74.8432,
+#     distance=33.2317,
+#     clipping_range=(21.2845, 48.3509),
+# )
+
 iso_cam = dict(
-    position=(-27.2696, -16.3214, 8.61178),
-    focal_point=(1.27338, -0.446573, 2.47714),
-    viewup=(0.0807063, 0.229700, 0.969909),
-    roll=74.8432,
+    pos=(-21.1508, -13.3117, 23.3575),
+    focal_point=(1.27338, -0.446571, 2.47714),
+    viewup=(0.447170, 0.462829, 0.765395),
+    roll=59.8696,
     distance=33.2317,
-    clipping_range=(21.2845, 48.3509),
+    clipping_range=(26.7300, 46.2797),
 )
 
 vlm.plot_unsteady(
@@ -210,8 +268,8 @@ vlm.plot_unsteady(
     wake_form=wake_form,
     interactive=False,
     camera=iso_cam,
-    name=f'prop_ani_iso_nr_{nr}_nt_{nt}' + f'_{wake_form}',
-    fps=10
+    name=f'prop_wing_ani_iso_nr_{nr}_nt_{nt}' + f'_{wake_form}',
+    fps=10,
 )
 
 # front
@@ -233,37 +291,10 @@ vlm.plot_unsteady(
     wake_form=wake_form,
     interactive=False,
     camera=front_cam,
-    name=f'prop_ani_front_nr_{nr}_nt_{nt}' + f'_{wake_form}',
-    fps=10
+    name=f'prop_wing_ani_front_nr_{nr}_nt_{nt}' + f'_{wake_form}',
+    fps=10,
 )
 
-# verifying dissipation
-bqs = 2.5
-time_array = np.arange(0,nt*dt,dt)
-dd_val = np.exp(-bqs*time_array)
-gamma_w_col = np.zeros_like(dd_val)
-for i in range(nt-1):
-    gamma_w_col[i] = gamma_w_val[i+1,(nt-1)*(nr-1):].reshape(nt-1,nr-1)[:,0][-1]
-
-# gamma_w_col = gamma_w_val[-1].reshape(nt-1,ns-1)[:,0]
-
-gamma_w_col_rel = gamma_w_col/gamma_w_col[0]
-
-rel_gamma_diff = dd_val-gamma_w_col_rel
-# rel_gamma_error = rel_gamma_diff/dd_val
-
-if True:
-    plt.figure(figsize=(7,5))
-    plt.plot(time_array[:-1], dd_val[:-1], '-', linewidth=3, label='Analytical dissipation')
-    plt.plot(time_array[:-1], gamma_w_col_rel[:-1], '*', markersize=8, label='UVLM wake dissipation')
-    plt.xlabel('Time (s)', fontsize=15)
-    plt.xticks(fontsize=15)
-    plt.ylabel('Relative Wake Vortex Strength', fontsize=15)
-    plt.yticks(fontsize=15)
-    plt.legend(fontsize=15)
-    plt.grid()
-    # plt.savefig('UVLM_dissipation_plot.pdf')
-    plt.show()
 
 exit()
 

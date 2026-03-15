@@ -47,15 +47,15 @@ def wake_pre_processor(solver_options_dict, mesh_dict, vectorized_mesh_dict, ode
 
         x_w_grid = x_w[start_wpc:stop_wpc].reshape((nt, ns, 3))
         wake_corners = csdl.Variable(value=np.zeros((nt-1, ns-1, 4, 3)))
-        wake_corners = wake_corners.set(csdl.slice[:,:,0,:], x_w_grid[:-1, :-1, :])
-        wake_corners = wake_corners.set(csdl.slice[:,:,1,:], x_w_grid[:-1, 1:, :])
-        wake_corners = wake_corners.set(csdl.slice[:,:,2,:], x_w_grid[1:, 1:, :])
-        wake_corners = wake_corners.set(csdl.slice[:,:,3,:], x_w_grid[1:, :-1, :])
-
         # wake_corners = wake_corners.set(csdl.slice[:,:,0,:], x_w_grid[:-1, :-1, :])
-        # wake_corners = wake_corners.set(csdl.slice[:,:,1,:], x_w_grid[1:, :-1, :])
+        # wake_corners = wake_corners.set(csdl.slice[:,:,1,:], x_w_grid[:-1, 1:, :])
         # wake_corners = wake_corners.set(csdl.slice[:,:,2,:], x_w_grid[1:, 1:, :])
-        # wake_corners = wake_corners.set(csdl.slice[:,:,3,:], x_w_grid[:-1, 1:, :])
+        # wake_corners = wake_corners.set(csdl.slice[:,:,3,:], x_w_grid[1:, :-1, :])
+
+        wake_corners = wake_corners.set(csdl.slice[:,:,0,:], x_w_grid[:-1, :-1, :])
+        wake_corners = wake_corners.set(csdl.slice[:,:,1,:], x_w_grid[1:, :-1, :])
+        wake_corners = wake_corners.set(csdl.slice[:,:,2,:], x_w_grid[1:, 1:, :])
+        wake_corners = wake_corners.set(csdl.slice[:,:,3,:], x_w_grid[:-1, 1:, :])
 
         mesh_dict[key]['wake_corners'] = wake_corners
 

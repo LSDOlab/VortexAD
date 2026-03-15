@@ -66,6 +66,7 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
     # time_deficit = csdl.Variable(value=np.arange(0,nt*dt,dt)*-1) + time
     # time_in_wake = csdl.maximum(time_deficit, csdl.Variable(value=np.zeros(time_deficit.shape)), rho=100.)
 
+    dissipation_flag = solver_options_dict['dissipation']
     vc_parameters = solver_options_dict['vc_parameters']
     bqs = vc_parameters[2]
 
@@ -75,8 +76,12 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
     dgammaw_dt = csdl.Variable(value=np.zeros(gamma_w.shape))
     dxw_dt = csdl.Variable(value=np.zeros(x_w.shape))
 
-    # velocity_activation = solver_options_dict['velocity_activation'][0] # removing num_nodes
-
+    velocity_activation = solver_options_dict['velocity_activation'][0] # removing num_nodes
+    kutta_activation = solver_options_dict['kutta_activation'][0] # removing num_nodes
+    if dissipation_flag:
+        dissipation_activation = solver_options_dict['dissipation_activation'][0] # removing num_nodes
+    # print(dissipation_activation.shape)
+    # exit()
     bps, bpe = 0, 0
     wps, wpe = 0, 0 # wake panel start/end
     wns, wne = 0, 0 # wake node start/end
@@ -100,53 +105,77 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
 
         surf_bd_vortex_mesh = mesh_dict[mesh_name]['bound_vortex_mesh'][0,:] # removing num_nodes
 
-        dgammaw_dt_surf = csdl.Variable(value=np.zeros((nt-1, ns-1)))
-        vde_exp = csdl.expand( 
-            vde[:-1], 
-            dgammaw_dt_surf.shape,
-            'i->ia'
-        )
+        dgammaw_dt_surf_shape = (nt-1, ns-1)
 
+        # vde_exp = csdl.expand( 
+            # vde[:-1], 
+            # dgammaw_dt_surf_shape,
+            # 'i->ia'
+        # )
         # dgammaw_dt_surf = dgammaw_dt_surf.set(
         #     csdl.slice[0,:],
         #     (gamma_surf[-1,:] - gamma_w_surf[0,:])/dt
+        #     # (gamma_surf[-1,:] - gamma_w_surf[0,:]*vde_exp[0,:])/dt
         # )
         # dgammaw_dt_surf = dgammaw_dt_surf.set(
         #     csdl.slice[1:,:],
-        #     (gamma_w_surf[:-1,:] - gamma_w_surf[1:,:])/dt
+        #     # (gamma_w_surf[:-1,:] - gamma_w_surf[1:,:])/dt
+        #     (gamma_w_surf[:-1,:]*(csdl.exp(-bqs*dt)) - gamma_w_surf[1:,:])/dt
         # )
-        # dgammaw_dt_surf = dgammaw_dt_surf*vde_exp
-
-        # NOTE: ADD THE DISSIPATION EFFECT TO THE gamma_w_surf TERMS
-        # IN THE ABOVE LINES AT DIFFERENT TIMES 
-
-        dgammaw_dt_surf = dgammaw_dt_surf.set(
-            csdl.slice[0,:],
-            (gamma_surf[-1,:] - gamma_w_surf[0,:])/dt
-            # (gamma_surf[-1,:] - gamma_w_surf[0,:]*vde_exp[0,:])/dt
+        KC_deriv = gamma_surf[-1,:]/dt
+        KC_deriv_exp = csdl.expand(
+            KC_deriv,
+            dgammaw_dt_surf_shape,
+            'a->ia'
         )
-        dgammaw_dt_surf = dgammaw_dt_surf.set(
-            csdl.slice[1:,:],
-            # (gamma_w_surf[:-1,:] - gamma_w_surf[1:,:])/dt
-            (gamma_w_surf[:-1,:]*(csdl.exp(-bqs*dt)) - gamma_w_surf[1:,:])/dt
+        KC_activation = csdl.expand(
+            kutta_activation,
+            dgammaw_dt_surf_shape,
+            'i->ia'
         )
+        dgammaw_dt_surf_no_diss = KC_deriv_exp*KC_activation
+        dgammaw_dt_surf = dgammaw_dt_surf_no_diss
 
-        # vel_act_surf = csdl.expand(
-        #     velocity_activation[1:],
-        #     (nt-1,ns,3),
-        #     'i->iab'
+        if dissipation_flag:
+
+            diss_activation_exp = csdl.expand(
+                dissipation_activation,
+                dgammaw_dt_surf_no_diss.shape,
+                'i->ia'
+            )
+            # dissipation_deriv = diss_activation_exp*(csdl.exp(-bqs*dt)-1)*gamma_w_surf/dt
+            dissipation_deriv = diss_activation_exp*gamma_w_surf*(-bqs)
+
+            dgammaw_dt_surf += dissipation_deriv
+
+
+        # TE following condition for wake (DOES NOT WORK --> THERE'S A DELAY IN THE SHEDDING SO IT'S WRONG)
+        vel_act_surf = csdl.expand(
+            velocity_activation,
+            (nt,ns,3),
+            'i->iab'
+        )
+        TE_act_surf = 1 - vel_act_surf
+
+        TE_deriv = (surf_bd_vortex_mesh[-1,:] - x_w_surf[0,:])/dt
+        TE_deriv_exp = csdl.expand(
+            TE_deriv,
+            (nt,ns,3),
+            'ij->aij'
+        )
+        # dxw_dt_surf = wake_vel_surf*vel_act_surf + TE_deriv_exp*TE_act_surf # WRONG
+        dxw_dt_surf = wake_vel_surf*vel_act_surf
+
+        # dxw_dt_surf = csdl.Variable(value=np.zeros((nt, ns, 3)))
+        # dxw_dt_surf = dxw_dt_surf.set(
+        #     csdl.slice[0,:],
+        #     (surf_bd_vortex_mesh[-1,:] - x_w_surf[0,:])/dt
         # )
-
-        dxw_dt_surf = csdl.Variable(value=np.zeros((nt, ns, 3)))
-        dxw_dt_surf = dxw_dt_surf.set(
-            csdl.slice[0,:],
-            (surf_bd_vortex_mesh[-1,:] - x_w_surf[0,:])/dt
-        )
-        dxw_dt_surf = dxw_dt_surf.set(
-            csdl.slice[1:,:],
-            wake_vel_surf[1:,:] + (x_w_surf[:-1,:] - x_w_surf[1:,:])/dt
-            # wake_vel_surf[1:,:]*vel_act_surf
-        )
+        # dxw_dt_surf = dxw_dt_surf.set(
+        #     csdl.slice[1:,:],
+        #     # wake_vel_surf[1:,:] + (x_w_surf[:-1,:] - x_w_surf[1:,:])/dt
+        #     wake_vel_surf[1:,:]*vel_act_surf
+        # )
 
         dgammaw_dt =  dgammaw_dt.set(
             csdl.slice[wps:wpe],

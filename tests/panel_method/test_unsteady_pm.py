@@ -23,7 +23,7 @@ if test_case == 'NACA':
     dt = .01
     V_inf = 10
     ref_area = 10.
-    nt = 150
+    nt = 50
     mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl' # triangles
     mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_quad.msh' # quad
     # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.stl' # triangles
@@ -62,7 +62,7 @@ input_dict = {
     'compressibility': False,
 
     'solver_mode': 'unsteady',
-    'free_wake': False,
+    'free_wake': True,
     'dt': dt,
     'nt': nt,
     'core_radius': 1.e-3,
@@ -151,7 +151,7 @@ mu_w_val = sim[mu_w]
 
 wake_form = 'lines' # grid or lines
 vid_name = test_case + '_' + wake_form
-if False:
+if True:
     # panel_method.plot(CP_val, bounds=[-3,1])
     cam = dict(
         pos=(-6.84211, -15.9857, 9.85074),
@@ -170,7 +170,7 @@ if False:
         wake_form=wake_form, # grid or lines
         interactive=False, 
         name=vid_name)
-
+exit()
 t_vec = np.linspace(0,nt*dt,nt)
 c=1
 if True:
@@ -193,6 +193,18 @@ data_dict = {
 file_name = 'PM_data_rect_wing.pkl'
 with open(file_name, 'wb') as file:
     pickle.dump(data_dict, file)
+
+
+plotting_data_dict = {
+    'mesh': mesh_val,
+    'x_w': x_w_val,
+    'mu': mu_val,
+    'mu_w': mu_w_val,
+}
+
+file_name = 'PM_plotting_data.pkl'
+with open(file_name, 'wb') as file:
+    pickle.dump(plotting_data_dict, file)
 
 exit()
 

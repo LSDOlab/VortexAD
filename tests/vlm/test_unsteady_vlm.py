@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pickle
 
 V_inf = 10.
-nt, dt = 15, 0.01
+nt, dt = 50, 0.01
 ns, nc = 14, 5
 AR = 10
 c = 1
@@ -105,19 +105,22 @@ print(L_val)
 print(CL_val)
 print(CDi_val)
 
+wake_form = 'lines'
+
 if True:
     mesh_val_list = [
         sim[mesh], 
         # sim[mesh_dup]
     ]
-
     vlm.plot_unsteady(
         mesh_val_list,
         x_w_val,
         gamma_val,
         gamma_w_val,
+        wake_form=wake_form,
         interactive=False,
-        name='uvlm_wing_sample_ani'
+        name=f'uvlm_wing_sample_ani_{wake_form}',
+        fps=10,
     )
 
 t_vec = np.linspace(0,nt*dt,nt)
@@ -151,7 +154,9 @@ time_array = np.arange(0,nt*dt,dt)
 dd_val = np.exp(-bqs*time_array)
 gamma_w_col = np.zeros_like(dd_val)
 for i in range(nt-1):
-    gamma_w_col[i] = gamma_w_val[i+1].reshape(nt-1,ns-1)[:,0][i]
+    gamma_w_col[i] = gamma_w_val[i+1].reshape(nt-1,ns-1)[:,0][-1]
+
+# gamma_w_col = gamma_w_val[-1].reshape(nt-1,ns-1)[:,0]
 
 if True:
     plt.figure(figsize=(7,5))

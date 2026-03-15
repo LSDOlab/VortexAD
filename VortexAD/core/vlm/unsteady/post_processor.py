@@ -409,6 +409,10 @@ def compute_surface_outputs(output_dict, solver_options_dict):
         )
 
         sub_dict = {
+            'panel_L': panel_L,
+            'panel_Di': panel_Di,
+            'panel_M': panel_M,
+            
             'L': surf_L,
             'Di': surf_Di,
             'M': surf_M,

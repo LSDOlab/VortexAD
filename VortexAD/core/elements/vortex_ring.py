@@ -50,8 +50,14 @@ def compute_vortex_line_ind_vel(p1, p2, p_eval, gamma=1., mode='surface', vc=Non
     elif mode == 'wake':
         expand_str = 'ij->ija'
 
+    # original
     r1 = p_eval-p1
     r2 = p_eval-p2
+
+    # alternative to fix sign of rollup (doesn't work fullyyyy)
+    # r1 = p_eval-p2
+    # r2 = p_eval-p1
+
     input_shape = r1.shape
     xyz_dim = len(input_shape) - 1
 
@@ -65,10 +71,12 @@ def compute_vortex_line_ind_vel(p1, p2, p_eval, gamma=1., mode='surface', vc=Non
     r1r2_cross = csdl.cross(r1, r2, axis=xyz_dim)
     r1r2_cross_norm = csdl.norm(r1r2_cross+1.e-12, axes=(xyz_dim,))
     r1r2_cross_norm_exp = csdl.expand(r1r2_cross_norm, r1.shape, expand_str)
-
+    # print(vc)
+    # exit()
     if vc is None:
         # compute dot products 
         r0 = r1-r2
+        # r0 = r2-r1
         r0r1_dot = csdl.sum(r0*r1, axes=(xyz_dim,))
         r0r1_dot_exp = csdl.expand(r0r1_dot, r1.shape, expand_str)
         r0r2_dot = csdl.sum(r0*r2, axes=(xyz_dim,))

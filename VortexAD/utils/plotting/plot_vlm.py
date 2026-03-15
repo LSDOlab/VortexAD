@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 plt.rcParams.update(plt.rcParamsDefault)
 
 def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, bounds=False, wake_form='grid', 
-                   interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio'):
+                   interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio', fps=5):
     vedo.settings.default_backend = 'vtk'
     nt = surface_data.shape[0]
     num_meshes = len(meshes)
@@ -15,12 +15,12 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
         yrange=(-7.5, 7.5),
         zrange=(0, 5),
     )
-    video = Video(name+".mp4", fps=5, backend=backend)
+    video = Video(name+".mp4", fps=fps, backend=backend)
 
-    min_mu_b = np.min(surface_data)
-    max_mu_b = np.max(surface_data)
-    min_mu_w = np.min(wake_data)
-    max_mu_w = np.max(wake_data)
+    min_mu_b = np.min(surface_data[-1])
+    max_mu_b = np.max(surface_data[-1])
+    min_mu_w = np.min(wake_data[-1])
+    max_mu_w = np.max(wake_data[-1])
 
     min_mu = np.min((min_mu_b, min_mu_w))
     max_mu = np.max((max_mu_b, max_mu_w))
@@ -53,7 +53,8 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
 
             bpe += num_body_panels
 
-            vps = Mesh([np.reshape(mesh_points, (-1, 3)), mesh_connectivity[m].reshape((-1,4))], c=surface_color, alpha=1.).linecolor('black')
+            reshaped_mesh_points = np.reshape(mesh_points, (-1, 3))
+            vps = Mesh([reshaped_mesh_points, mesh_connectivity[m].reshape((-1,4))], c=surface_color, alpha=1.).linecolor('black')
 
             surf_color = np.reshape(surface_data[i,bps:bpe], (-1,1))
         
@@ -61,6 +62,13 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
             vps.add_scalarbar()
             vp += vps
             vp += __doc__
+
+            # normal vectors
+            # vps.compute_normals(points=True)
+            # point_normals=vps.vertex_normals
+            # asdf = reshaped_mesh_points + point_normals
+            # lines = Lines(reshaped_mesh_points, asdf).linecolor('black')
+            # vp += lines
 
             if i > 0:
                 num_surf_wake_nodes = nt*ns
@@ -70,7 +78,8 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
                 wake_mesh_surf = wake_mesh[i,wns:wne].copy().reshape((nt, ns, 3))
                 wake_data_surf = wake_data[i,wps:wpe]
                 
-                wake_points_iter = wake_mesh_surf[:i+1,:]
+                # wake_points_iter = wake_mesh_surf[:i+1,:] # OLD METHOD
+                wake_points_iter = wake_mesh_surf[-(i+1):,:] # NEW METHOD
                 # wake_points_iter[0,:] = mesh_points[TE_indices]
                 wake_points_iter[0,:] = mesh_points[-1,:]
                 wake_points_iter = wake_points_iter.reshape((ns*(i+1), 3))
@@ -78,14 +87,25 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
                 nTp = wake_connectivity[m].shape[1]
                 if wake_form == 'grid':
                     # wake_conn_iter = wake_connectivity[m][:i,:,:].reshape((i*nTp, 4))
-                    wake_conn_iter = wake_connectivity[m][:i,:,:].reshape((-1, 4))
-                    vps = Mesh([np.reshape(wake_points_iter, (-1, 3)), wake_conn_iter], c='gray', alpha=1).linecolor('black')
-                    wake_color = np.reshape(wake_data_surf[:(i)*(nTp)], (-1,1))
+                    wake_conn_iter = wake_connectivity[m][:i,:,:].reshape((-1, 4)) # OLD METHOD
+                    # wake_conn_iter = wake_connectivity[m][-i:,:,:].reshape((-1, 4)) # NEW METHOD 
+                    # NOTE: the line above doesn't work bc it's the point indices for the end of the wake, but we need the connectivity for the start of the wake to connect to the TE
+                    reshaped_wake_points = np.reshape(wake_points_iter, (-1, 3))
+                    vps = Mesh([reshaped_wake_points, wake_conn_iter], c='gray', alpha=1).linecolor('black')
+                    # wake_color = np.reshape(wake_data_surf[:(i)*(nTp)], (-1,1)) # OLD METHOD
+                    wake_color = np.reshape(wake_data_surf[-(i)*(nTp):], (-1,1)) # NEW METHOD
                     vps.cmap(cmap, wake_color, on='cells', vmin=min_mu, vmax=max_mu)
+
+                    # vps.compute_normals(points=True)
+                    # wake_normals = vps.vertex_normals
+                    # asdf = reshaped_wake_points + wake_normals
+                    # lines = Lines(reshaped_wake_points, asdf).linecolor('black')
+                    # vp += lines
 
                 elif wake_form == 'lines':
                     wpig = wake_points_iter.reshape((i+1, ns, 3))
-                    wdsg = wake_data_surf[:(i)*(nTp)].reshape((i, ns-1))
+                    # wdsg = wake_data_surf[:(i)*(nTp)].reshape((i, ns-1)) # OLD METHOD
+                    wdsg = wake_data_surf[-(i)*(nTp):].reshape((i, ns-1)) # NEW METHOD
                     line_pts = []
                     line_colors = []
                     for j in range(i):

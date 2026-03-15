@@ -63,6 +63,7 @@ default_input_dict = {
     'core_radius': 1.e-3, # vortex core radius
     'vc_parameters': [1.25643, 0, 2.5], # alpha, a1, bqs from core model
     'free_wake': False,
+    'dissipation': False,
 }
 
 output_options_dict = {
@@ -490,6 +491,9 @@ class PanelMethod(object):
         self.TE_node_indices = TE_properties[3]
 
         self.TE_properties_flag = True
+
+    def setup_plotting_inputs(self):
+        self.generate_wake_connectivity()
 
     
     def plot(self, data_to_plot, bounds=None, cmap='jet', camera=False, screenshot=False):

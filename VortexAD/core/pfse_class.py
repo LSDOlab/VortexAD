@@ -1,10 +1,7 @@
 import numpy as np
 import csdl_alpha as csdl
 
-from VortexAD.core.vlm.steady_vlm_solver import steady_vlm_solver
-from VortexAD.core.vlm.unsteady_vlm_solver import unsteady_vlm_solver
-
-from VortexAD.utils.plotting.plot_vlm import plot_wireframe
+from VortexAD.core.pfse.pfse_solver import pfse_solver
 
 default_input_dict = {
     # flow properties
@@ -15,6 +12,7 @@ default_input_dict = {
     'rho': 1.225, # kg/m^3
     'nu': 1.46e-5,
     'compressibility': False, # PG correction
+    'Cp cutoff': -5., # minimum Cp (numerical reasons)
 
     # mesh
     'meshes': None, # NOTE: set up default mesh here 
@@ -22,10 +20,6 @@ default_input_dict = {
 
     # collocation velocity
     'collocation_velocity': False,
-
-    # solver and wake mode; steady is fixed, unsteady is prescribed or free
-    'solver_mode': 'steady',
-    'wake_mode': 'fixed',
 
     # partition size for linear system assembly
     'partition_size': 1, # for full vectorization, set to None
@@ -35,9 +29,6 @@ default_input_dict = {
     
     # ROM options
     'ROM': False, # 'ROM-POD or ROM-Krylov
-
-    # reusing AIC (no alpha dependence on wake) --> this only applies to fixed wake
-    'reuse_AIC': False,
 
     # others
     'ref_area': 10., # reference area (l^2, l being the input length unit)
@@ -51,68 +42,73 @@ default_input_dict = {
     'core_radius': 1.e-3, # vortex core radius
     'vc_parameters': [1.25643, 0, 2.5], # alpha, a1, bqs from core model
     'free_wake': False,
-    'dissipation': False,
 
     # ML airfoil model
     'alpha_ML': False
+
 }
 
+mesh_dict = {
+    'type': 
+}
 
-
-class VortexLatticeMethod(object):
+class PFSE(object):
     def __init__(self, solver_input_dict):
         options_dict = default_input_dict
         for key in solver_input_dict.keys():
             options_dict[key] = solver_input_dict[key]
         self.options_dict = options_dict
 
-        if self.options_dict['meshes'] is None:
-            from VortexAD.utils.meshing.gen_vlm_mesh import gen_vlm_mesh
-            print('No mesh input. Generating default mesh.')
-            ns, nc = 11, 3
-            b, c = 10., 1.
-            mesh = gen_vlm_mesh(ns, nc, b, c)
-            self.options_dict['meshes'] = [mesh]
+        # instantiating dictionary
+        self.meshes = []
+        self.mesh_names = []
+        self.surf_counter = 0
+        self.connectivity_list = []
+        self.coll_vel_list = []
+        self.coll_vel_flag_list = []
 
-        self.meshes = self.options_dict['meshes']
-        self.num_surfaces = len(self.options_dict['meshes'])
-        self.reuse_AIC = self.options_dict['reuse_AIC']
-        self.solver_mode = self.options_dict['solver_mode']
+    def add_thick_surface(self, mesh, name=None, connectivity=None, coll_vel=None):
+        if name is None:
+            name = f'surface_{self.surf_counter}'
 
-        self.setup_flow_properties()
+        if coll_vel is None:
+            coll_vel_flag = False
+        else:
+            coll_vel = -coll_vel # velocity relative to body --> sign change
+            coll_vel_flag = True
+        
+        self.meshes.append(mesh)
+        self.mesh_names.append(name)
+        self.connectivity_list.append(connectivity)
+        self.coll_vel_list.append(coll_vel)
+        self.coll_vel_flag_list.append(coll_vel_flag)
+
+        self.surf_counter += 1
+
+    def add_thin_surface(self, mesh, name=None, connectivity=None, coll_vel=None):
+        if name is None:
+            name = f'surface_{self.surf_counter}'
+        coll_vel_flag = True
+        if coll_vel is None:
+            coll_vel_flag = False
+        else:
+            coll_vel = -coll_vel # velocity relative to body --> sign change
+            coll_vel_flag = True
+
+        self.meshes.append(mesh)
+        self.mesh_names.append(name)
+        self.connectivity_list.append(None)
+        self.coll_vel_list.append(coll_vel)
+        self.coll_vel_flag_list.append(coll_vel_flag)
+
+        self.surf_counter += 1
 
     def setup_flow_properties(self):
-        '''
-        Input velocity options
-        - mach + sos to get V_inf
-        - V_inf as a:
-            - scalar
-            - vector
-            - grid
-
-        Ways to input velocity:
-        - Mach*sos and alpha as a scalar
-        - Mach*sos and alpha across num_nodes
-        - V_inf and alpha as a scalar
-        - V_inf and alpha across num_nodes
-        - nodal velocity across num_nodes, grid points and 3
-
-        Steps to propagate velocities:
-        - take one of the inputs from above list
-        - convert to 3-components (x,y,z) 
-            - this is a vector representing the flow field
-        - loop over mesh list and make velocity across the nodes
-            - V_vec --> nodal velocities (nn, nc, ns, 3) using einsum
-        '''
-        # grid_shape = self.points.shape
-
         V_inf   = self.options_dict['V_inf']
         mach    = self.options_dict['Mach']
         sos     = self.options_dict['sos']
         alpha   = self.options_dict['alpha']
-        # if alpha is None:
-        #     alpha = np.zeros(V_inf.shape)
-
+        
         # checking if V_inf is defined vs. mach #
         if V_inf is None:
             if mach is None:
@@ -209,7 +205,7 @@ class VortexLatticeMethod(object):
             # case where velocity is a tensor of shape (nn, n_points, 3)
             elif len(V_inf.shape) == 4:
                 V_vec_nn = V_inf
-        
+
         self.mesh_velocities = []
         for i, mesh in enumerate(self.meshes):
             # nc, ns = mesh.shape[1], mesh.shape[2]
@@ -224,134 +220,61 @@ class VortexLatticeMethod(object):
                 else:
                     mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
             self.mesh_velocities.append(mesh_velocity)
-        
+
         if isinstance(V_inf, list):
             self.mesh_velocities = [-val for val in V_inf]
-
-        self.coll_velocity = self.num_surfaces*[None]
-        self.coll_vel_flag = self.num_surfaces*[False]
-        input_coll_vel = self.options_dict['collocation_velocity']
-
-        for i in range(self.num_surfaces):
-            if input_coll_vel:
-                mvs = self.mesh_velocities[i].shape
-                expected_shape = (num_nodes, mvs[1]-1, mvs[2]-1, 3) # collocation points
-                if input_coll_vel[i].shape != expected_shape:
-                    raise ValueError(f'collocation velocity shape does not match nodal velocity shape: {expected_shape}')
-                
-                self.coll_velocity[i] = -input_coll_vel[i] # velocity relative to body --> sign change
-                self.coll_vel_flag[i] = True
 
         self.num_nodes = num_nodes
         self.options_dict['num_nodes'] = num_nodes
 
-        # self.flow_dict = {
-        #     'nodal_velocity': self.grid_velocity,
-        #     'coll_point_velocity': None # NOTE: change in the future
-        # }
-        self.flow_properties_flag = True
+        # collocation velocities are handled in the functions that load meshes
+        # for i in range(self.num_surfaces):
+        #     mvs = self.mesh_velocities[i].shape
+        #     expected_shape = (num_nodes, mvs[1]-1, mvs[2]-1, 3) # collocation points
+        #     if input_coll_vel[i].shape != expected_shape:
+        #         raise ValueError(f'collocation velocity shape does not match nodal velocity shape: {expected_shape}')
+            
+        #     self.coll_velocity[i] = -input_coll_vel[i] # velocity relative to body --> sign change
+        #     self.coll_vel_flag[i] = True
 
-    def declare_outputs(self, outputs):
-        '''
-        Declare outputs to be saved
-        '''
-        self.output_name_list = outputs
-
-    def __assemble_input_dict__(self):
-
-        nn_geom = self.num_nodes
-        if self.reuse_AIC:
-            nn_geom = 1
-        print(self.num_nodes)
-        # exit()
-        if len(self.meshes[0].shape) == 4: # (nn, nc, ns, 3)
-            self.meshes = self.meshes
-        else:
-            # self.meshes = csdl.expand(
-            #     self.meshes,
-            #     (nn_geom,) + self.points.shape,
-            #     'ij->aij'
-            # )
-            meshes = [
-                csdl.expand(
-                mesh,
-                (nn_geom,) + mesh.shape,
-                'ijk->aijk'
-            ) for mesh in self.meshes
-            ]
-            self.meshes = meshes
-        num_surfaces = len(self.meshes)
-        if self.options_dict['mesh_names'] is None:
-            mesh_names = [f'surface_{i}' for i in range(num_surfaces)]
-        if len(mesh_names) != num_surfaces: # only for custom mesh names
-            raise ValueError('List of mesh names must match the number of surfaces.')
-        self.orig_mesh_dict = {}
-        for i in range(num_surfaces):
-            surf_name = mesh_names[i]
-            self.orig_mesh_dict[surf_name] = {
-                'mesh': self.meshes[i],
-                'nodal_velocity': self.mesh_velocities[i],
-                'coll_vel_flag': self.coll_vel_flag[i],
-                'coll_vel': self.coll_velocity[i]
-            }
-
-        # self.orig_mesh_dict = {
-        #     'points': self.meshes,
-        #     'nodal_velocity': self.grid_velocity,
-        #     'collocation_velocity': self.coll_velocity,
-        #     'coll_vel_flag': self.coll_vel_flag,
-        #     'wake_connectivity': self.wake_connectivity
-        # }
+    def generate_wake_connectivity(self):
+        pass
 
     def evaluate(self):
-        if not self.flow_properties_flag:
-            self.setup_flow_properties()
+        self.options_dict['meshes'] = self.meshes
+        self.options_dict['connectivity'] = self.connectivity_list
+        self.options_dict['collocation_velocity'] = self.coll_vel_list
+
+        self.generate_wake_connectivity()
+
+        self.setup_flow_properties()
 
         self.__assemble_input_dict__()
 
-        if self.solver_mode == 'steady':
-            vlm_output_dict = steady_vlm_solver(
-                self.orig_mesh_dict,
-                self.options_dict,
-            )
-        elif self.solver_mode == 'unsteady':
-            vlm_output_dict = unsteady_vlm_solver(
-                self.orig_mesh_dict,
-                self.options_dict,
-            )
 
+        solver_output_dict = pfse_solver(
+            self.orig_mesh_dict,
+            self.options_dict
+        )
+        
         output_dict = {}
         for output_name in self.output_name_list:
-            output_dict[output_name] = vlm_output_dict[output_name]
+            output_dict[output_name] = solver_output_dict[output_name]
 
         return output_dict
+    
+    def __assemble_input_dict__(self):
+        self.orig_mesh_dict = {}
 
-    def plot_unsteady(self, meshes, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='sample_vlm_ani', fps=5):
-        num_meshes = len(meshes)
-        mesh_connectivity = []
-        wake_connectivity = []
-        for i in range(num_meshes):
-            ms = meshes[i].shape
-            nt, nc, ns = ms[0], ms[1], ms[2] # num points
-            nt_p, nc_p, ns_p = nt-1, nc-1, ns-1 # num panels
-            surf_mesh_con = np.array([[[
-                j + i*ns,
-                j + (i+1)*ns,
-                j+1 + (i+1)*ns,
-                j+1 + i*ns,
-            ] for j in range(ns-1)] for i in range(nc-1)])
-            mesh_connectivity.append(surf_mesh_con)
-            wake_mesh_con = np.array([[[
-                j + i*ns,
-                j + (i+1)*ns,
-                j+1 + (i+1)*ns,
-                j+1 + i*ns,
-            ] for j in range(ns-1)] for i in range(nt-1)])
-            wake_connectivity.append(wake_mesh_con)
-        
+        num_surfaces = len(self.meshes)
+        for i in range(num_surfaces):
+            surf_name = self.mesh_names[i]
 
+            sub_dict = {
+                'mesh': self.meshes[i],
+                'nodal_velocity': self.mesh_velocities[i],
+                'coll_vel': self.coll_vel_list[i],
+                'coll_vel_flag': self.coll_vel_flag_list[i]
+            }
 
-        plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, 
-                       bounds=bounds, wake_form=wake_form, interactive=interactive, camera=camera, name=name, fps=fps)
-
-            
+            self.orig_mesh_dict[surf_name] = sub_dict

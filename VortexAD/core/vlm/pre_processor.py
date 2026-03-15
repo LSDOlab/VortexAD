@@ -32,7 +32,7 @@ def pre_processor(mesh_dict):
         total_panels += num_panels
 
         # bound vortex grid computation
-        print(mesh.shape)
+        # print(mesh.shape)
         bound_vortex_mesh = csdl.Variable(shape=mesh.shape, value=0.)
         bound_vortex_mesh = bound_vortex_mesh.set(csdl.slice[:,:-1,:,:], value=(3*mesh[:,:-1,:,:] + mesh[:,1:,:,:])/4)
         bound_vortex_mesh = bound_vortex_mesh.set(csdl.slice[:,-1,:,:], value=mesh[:,-1,:,:] + (mesh[:,-1,:,:] - mesh[:,-2,:,:])/4)
@@ -45,10 +45,10 @@ def pre_processor(mesh_dict):
         p3_bd = bound_vortex_mesh[:,1:, 1:, :]
         p4_bd = bound_vortex_mesh[:,1:, :-1, :]
 
-        # p1_bd = bound_vortex_mesh[:,:-1, :-1, :]
-        # p2_bd = bound_vortex_mesh[:,1:, :-1, :]
-        # p3_bd = bound_vortex_mesh[:,1:, 1:, :]
-        # p4_bd = bound_vortex_mesh[:,:-1, 1:, :]
+        p1_bd = bound_vortex_mesh[:,:-1, :-1, :]
+        p2_bd = bound_vortex_mesh[:,1:, :-1, :]
+        p3_bd = bound_vortex_mesh[:,1:, 1:, :]
+        p4_bd = bound_vortex_mesh[:,:-1, 1:, :]
 
         panel_corners = csdl.Variable(shape=(num_nodes, nc-1, ns-1, 4, 3), value=0.)
         panel_corners = panel_corners.set(csdl.slice[:,:,:,0,:], p1_bd)
@@ -62,7 +62,8 @@ def pre_processor(mesh_dict):
         collocation_points = (p1_bd + p2_bd + p3_bd + p4_bd)/4.
         mesh_dict[key]['collocation_points'] = collocation_points
 
-        force_eval_pts = (p1_bd + p2_bd)/2.
+        # force_eval_pts = (p1_bd + p2_bd)/2.
+        force_eval_pts = (p1_bd + p4_bd)/2.
         mesh_dict[key]['force_eval_points'] = force_eval_pts
 
         # panel area and normal vector computation (NOTE: CHECK IF WE NEED TO USE THE MESH OR BOUND VORTEX GRID)
@@ -73,8 +74,11 @@ def pre_processor(mesh_dict):
 
         # panel diagonal vectors
         A = p3_bd - p1_bd
-        B = p2_bd - p4_bd
-        # B = p4_bd - p2_bd
+        # B = p2_bd - p4_bd
+        B = p4_bd - p2_bd
+
+        A = p2_bd-p1_bd
+        B = p4_bd-p1_bd
         normal_dir = csdl.cross(A, B, axis=3)
         panel_area = csdl.norm(normal_dir, axes=(3,)) / 2.
 
@@ -87,21 +91,23 @@ def pre_processor(mesh_dict):
         wetted_area = csdl.sum(panel_area, axes=(1,2))
         mesh_dict[key]['wetted_area'] = wetted_area
 
-        bound_vec = p2_bd - p1_bd
+        # bound_vec = p2_bd - p1_bd
+        bound_vec = p4_bd - p1_bd
+        # bound_vec = p1_bd - p4_bd
         mesh_dict[key]['bound_vec'] = bound_vec # NO NEED TO NORMALIZE BECAUSE WE NEED THE MAGNITUDE
 
         # VELOCITY COMPUTATIONS FOR COLLOCATION POINT AND BOUND VECTORS
         nodal_velocity = mesh_dict[key]['nodal_velocity'] # at the nodes of the mesh
 
-        v1 = nodal_velocity[:, :-1, :-1, :]
-        v2 = nodal_velocity[:, :-1, 1:, :]
-        v3 = nodal_velocity[:, 1:, 1:, :]
-        v4 = nodal_velocity[:, 1:, :-1, :]
-
         # v1 = nodal_velocity[:, :-1, :-1, :]
-        # v2 = nodal_velocity[:, 1:, :-1, :]
+        # v2 = nodal_velocity[:, :-1, 1:, :]
         # v3 = nodal_velocity[:, 1:, 1:, :]
-        # v4 = nodal_velocity[:, :-1, 1:, :]
+        # v4 = nodal_velocity[:, 1:, :-1, :]
+
+        v1 = nodal_velocity[:, :-1, :-1, :]
+        v2 = nodal_velocity[:, 1:, :-1, :]
+        v3 = nodal_velocity[:, 1:, 1:, :]
+        v4 = nodal_velocity[:, :-1, 1:, :]
 
         coll_point_velocity = 0.75*(v1+v2)/2. + 0.25*(v3+v4)/2.
         coll_vel_flag = mesh_dict[key]['coll_vel_flag']

@@ -136,31 +136,56 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
         vp += __doc__
 
         if i > 0:
-            # wake_points_iter = wake_mesh[i,:,:].reshape((nt, ns, 3))[:i+1,:].reshape((ns*(i+1), 3))
 
-            wake_points_iter = wake_mesh[i,:,:].reshape((nt, ns, 3))[:i+1,:]
+            wake_points_iter = wake_mesh[i,:,:].reshape((nt, ns, 3))[:i+1,:] # OLD METHOD
+            wake_points_iter = wake_mesh[i,:,:].reshape((nt, ns, 3))[-(i+1):,:] # NEW METHOD, reorders wake points for actuating geometries
             wake_points_iter[0,:] = mesh[i,TE_indices]
             wake_points_iter = wake_points_iter.reshape((ns*(i+1), 3))
             if wake_form == 'grid':
-                wake_conn_iter = wake_connectivity[:i,:,:].reshape((i*nTp, 4))
+                wake_conn_iter = wake_connectivity[:i,:,:].reshape((i*nTp, 4)) # OLD METHOD (don't need to replace)
                 vps = Mesh([np.reshape(wake_points_iter, (-1, 3)), wake_conn_iter], c='gray', alpha=1).linecolor('black')
-                mu_wake_color = np.reshape(wake_data[i,:(i)*(nTp)], (-1,1))
+                # mu_wake_color = np.reshape(wake_data[i,:(i)*(nTp)], (-1,1)) # OLD METHOD
+                mu_wake_color = np.reshape(wake_data[i,-(i)*(nTp):], (-1,1)) # NEW METHOD
                 vps.cmap(cmap, mu_wake_color, on='cells', vmin=min_mu, vmax=max_mu)
             # if draw_scalarbar:
             #     vps.add_scalarbar()
             #     draw_scalarbar = False
             elif wake_form == 'lines':
+                # ## OLD METHOD
+                # line_pts = []
+                # line_edges = []
+                # ns = len(TE_indices_zeroed)
+                # # for loop
+                # for j in range(i):
+                #     # line_pts.extend([[ind*j, ind*(j+1)] for ind in TE_indices])
+                #     line_pts.extend([[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices_zeroed])
+                #     line_edges.extend([(ind+j*ns, ind+(j+1)*ns) for ind in TE_indices_zeroed])
+                # # # list comprehension (supposedly faster)
+                # # line_pts = [[[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices] for j in range(i)]
+                # edge_adj_cells = []
+                # for edge in line_edges:
+                #     if edge in wake_edges2cells.keys():
+                #         adj_cells = wake_edges2cells[edge]
+                #     elif edge[::-1] in wake_edges2cells.keys():
+                #         adj_cells = wake_edges2cells[edge[::-1]]
+                #     edge_adj_cells.append(adj_cells)
+                #     # edge_color = np.average(wake_data[i,])
+                # line_colors = [np.average(wake_data[i,ind]) for ind in edge_adj_cells]
+                # TODO: find way to make list generation more efficient
+
+                ## NEW METHOD
+                wpig = wake_points_iter.reshape((i+1, ns, 3))
 
                 line_pts = []
+                line_colors = []
                 line_edges = []
-                ns = len(TE_indices_zeroed)
-                # for loop
                 for j in range(i):
-                    # line_pts.extend([[ind*j, ind*(j+1)] for ind in TE_indices])
-                    line_pts.extend([[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices_zeroed])
-                    line_edges.extend([(ind+j*ns, ind+(j+1)*ns) for ind in TE_indices_zeroed])
-                # # list comprehension (supposedly faster)
-                # line_pts = [[[wake_mesh[i,ind+j*ns,:], wake_mesh[i, ind+(j+1)*ns,:]] for ind in TE_indices] for j in range(i)]
+                    line_pts.extend([[wpig[j,ind,:], wpig[j+1,ind,:]] for ind in TE_indices_zeroed])
+
+                    # line_edges.extend([(ind+(j)*ns, ind+(j+1)*ns) for ind in TE_indices_zeroed]) # OLD METHOD
+                    line_edges.extend([(ind+(nt-i-1+j)*ns, ind+(nt-i+j)*ns) for ind in TE_indices_zeroed]) # NEW METHOD
+                    # the new method gets the wake elements closest to the TE to furthest away (the role of +j)
+                    # starting from some number of timesteps back from the furthest wake element (the role of -i)
                 edge_adj_cells = []
                 for edge in line_edges:
                     if edge in wake_edges2cells.keys():
@@ -170,7 +195,7 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
                     edge_adj_cells.append(adj_cells)
                     # edge_color = np.average(wake_data[i,])
                 line_colors = [np.average(wake_data[i,ind]) for ind in edge_adj_cells]
-                # TODO: find way to make list generation more efficient
+
                 vps = Lines(line_pts, lw=3, c='black')
                 vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
                 # vps.add_scalarbar()

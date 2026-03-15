@@ -19,6 +19,7 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
     moment_ref          = solver_options_dict['moment_reference']
     free_wake           = solver_options_dict['free_wake']
     ROM                 = solver_options_dict['ROM']
+    dissipation_flag    = solver_options_dict['dissipation']
 
     # coll_vel_flag       = orig_mesh_dict['coll_vel_flag']
     # coll_vel            = orig_mesh_dict['collocation_velocity']
@@ -51,6 +52,9 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
         solver_options_dict['time'] = ozone_vars.dynamic_parameters['time']
         solver_options_dict['time_in_wake'] = ozone_vars.dynamic_parameters['time_in_wake']
         solver_options_dict['velocity_activation'] = ozone_vars.dynamic_parameters['velocity_activation']
+        solver_options_dict['kutta_activation'] = ozone_vars.dynamic_parameters['kutta_activation']
+        if dissipation_flag:
+            solver_options_dict['dissipation_activation'] = ozone_vars.dynamic_parameters['dissipation_activation']
 
         for i in range(num_meshes):
             mesh_name = mesh_names[i]
@@ -134,20 +138,35 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
     ode_problem.add_dynamic_parameter('time', csdl.Variable(value=time_array))
 
     time_in_wake = np.zeros((nt, nt))
-    velocity_activation = np.zeros((nt, nt))
     for i in range(1,nt):
-        time_in_wake[i,:i] = time_array[:i]
+        time_in_wake[i,-i:] = time_array[1:(i+1)]
         # time_in_wake[i,:i] = time_array[1:i+1]
     
+    velocity_activation = np.zeros((nt, nt))
     for i in range(nt):
         # velocity_activation[i,:(i+1)] = 1.
         velocity_activation[i,-(i+1):] = 1.
+
+    kutta_activation = np.zeros((nt, nt-1))
+    for i in range(0,nt-1):
+        kutta_activation[i,-(i+1)] = 1.
 
     time_in_wake_var = csdl.Variable(value=time_in_wake)
     ode_problem.add_dynamic_parameter('time_in_wake',time_in_wake_var)
 
     vel_activation_var = csdl.Variable(value=velocity_activation)
     ode_problem.add_dynamic_parameter('velocity_activation', vel_activation_var)
+
+    kutta_activation_var = csdl.Variable(value=kutta_activation)
+    ode_problem.add_dynamic_parameter('kutta_activation', kutta_activation_var)
+
+    if dissipation_flag:
+        dissipation_activation = np.zeros((nt, nt-1))
+        for i in range(1,nt):
+            dissipation_activation[i,-i:] = 1
+            # dissipation_activation[i,:] = diss_val
+        dissipation_activation_var = csdl.Variable(value=dissipation_activation)
+        ode_problem.add_dynamic_parameter('dissipation_activation', dissipation_activation_var)
 
     nc_list, ns_list = [], []
     ns_panels_list = []
@@ -170,14 +189,32 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
     x_w_0 = csdl.Variable(value=np.zeros((num_wake_nodes,3)))
 
     start, stop = 0, 0
+    # this for loop uses the TE of the first timestep as an IC
+    # for i in range(num_meshes):
+    #     ns = meshes[i].shape[2]
+    #     mesh_last_two = meshes[i][0,-2:,:]
+    #     bdvtx_TE = 1.25*mesh_last_two[1,:] - 0.25*mesh_last_two[0,:]
+    #     mesh_wake_nodes = ns*nt
+    #     stop += mesh_wake_nodes
+    #     mesh_TE_exp = bdvtx_TE.expand((nt, ns, 3), 'ij->aij').reshape((mesh_wake_nodes, 3))
+
+    #     x_w_0 = x_w_0.set(csdl.slice[start:stop,:], mesh_TE_exp)
+    #     start += mesh_wake_nodes
+    # TODO: for the sake of actuating bodies, we should initialize different rows of wake nodes 
+    # according to where the trailing edge will be at that time step we can remove the 
+    # finite-difference term in the derivatives to shift non-shed wakes if we do this.
+
+    # this for loop uses the TE across all timesteps as an IC
     for i in range(num_meshes):
+        # meshes[i] has shape (nt, nc, ns, 3)
         ns = meshes[i].shape[2]
-        mesh_TE = meshes[i][0,-1,:]
-        mesh_last_two = meshes[i][0,-2:,:]
-        bdvtx_TE = 1.25*mesh_last_two[1,:] - 0.25*mesh_last_two[0,:]
+        mesh_last_two = meshes[i][:,-2:,:] # shape of (nt, 2, ns, 3)
+        bdvtx_TE = 1.25*mesh_last_two[:,1,:] - 0.25*mesh_last_two[:,0,:] # shape of (nt, ns, 3)
         mesh_wake_nodes = ns*nt
         stop += mesh_wake_nodes
-        mesh_TE_exp = bdvtx_TE.expand((nt, ns, 3), 'ij->aij').reshape((mesh_wake_nodes, 3))
+        # mesh_TE_exp = bdvtx_TE.reshape((mesh_wake_nodes, 3))
+        mesh_TE_exp = bdvtx_TE[::-1,:].reshape((mesh_wake_nodes, 3))
+        # this reversal is correct; the last entry in the wake array is the first to shed
 
         x_w_0 = x_w_0.set(csdl.slice[start:stop,:], mesh_TE_exp)
         start += mesh_wake_nodes
@@ -265,7 +302,12 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
     surf_CL = [surface_output_dict[name]['CL'] for name in mesh_names]
     surf_CDi = [surface_output_dict[name]['CDi'] for name in mesh_names]
 
+    surf_panel_L = [surface_output_dict[name]['panel_L'] for name in mesh_names]
+    surf_panel_Di = [surface_output_dict[name]['panel_Di'] for name in mesh_names]
+
     output_dict['surf_CL'] = surf_CL
     output_dict['surf_CDi'] = surf_CDi
+    output_dict['surf_panel_L'] = surf_panel_L
+    output_dict['surf_panel_Di'] = surf_panel_Di
 
     return output_dict
