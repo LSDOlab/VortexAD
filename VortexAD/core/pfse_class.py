@@ -12,7 +12,6 @@ default_input_dict = {
     'rho': 1.225, # kg/m^3
     'nu': 1.46e-5,
     'compressibility': False, # PG correction
-    'Cp cutoff': -5., # minimum Cp (numerical reasons)
 
     # mesh
     'meshes': None, # NOTE: set up default mesh here 
@@ -30,7 +29,7 @@ default_input_dict = {
     # ROM options
     'ROM': False, # 'ROM-POD or ROM-Krylov
 
-    # others
+    # reference values
     'ref_area': 10., # reference area (l^2, l being the input length unit)
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
@@ -43,14 +42,19 @@ default_input_dict = {
     'vc_parameters': [1.25643, 0, 2.5], # alpha, a1, bqs from core model
     'free_wake': False,
 
+    # panel method options
+    'boundary_condition': 'Dirichlet',
+    'Cp cutoff': -5., # minimum Cp (numerical reasons)
+
+
     # ML airfoil model
     'alpha_ML': False
 
 }
 
-mesh_dict = {
-    'type': 
-}
+# mesh_dict = {
+#     'type': 
+# }
 
 class PFSE(object):
     def __init__(self, solver_input_dict):
@@ -61,6 +65,7 @@ class PFSE(object):
 
         # instantiating dictionary
         self.meshes = []
+        self.mesh_types = [] # either thick or thin
         self.mesh_names = []
         self.surf_counter = 0
         self.connectivity_list = []
@@ -78,6 +83,7 @@ class PFSE(object):
             coll_vel_flag = True
         
         self.meshes.append(mesh)
+        self.mesh_types.append('thick')
         self.mesh_names.append(name)
         self.connectivity_list.append(connectivity)
         self.coll_vel_list.append(coll_vel)
@@ -96,6 +102,7 @@ class PFSE(object):
             coll_vel_flag = True
 
         self.meshes.append(mesh)
+        self.mesh_types.append('thin')
         self.mesh_names.append(name)
         self.connectivity_list.append(None)
         self.coll_vel_list.append(coll_vel)
@@ -239,6 +246,12 @@ class PFSE(object):
 
     def generate_wake_connectivity(self):
         pass
+
+    def declare_outputs(self, outputs):
+        '''
+        Declare outputs to be saved
+        '''
+        self.output_name_list = outputs
 
     def evaluate(self):
         self.options_dict['meshes'] = self.meshes

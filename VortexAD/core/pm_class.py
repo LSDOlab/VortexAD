@@ -31,7 +31,7 @@ default_input_dict = {
     'collocation_velocity': False,
 
     # panel method conditions
-    'BC': 'Dirichlet',
+    'panel_method_BC': 'Dirichlet',
     'higher_order': False,
 
     # solver and wake mode; steady is fixed, unsteady is prescribed or free

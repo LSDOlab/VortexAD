@@ -46,15 +46,18 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False, bc='Dir
             normal_vec = D1D2_cross / csdl.expand(D1D2_cross_norm, D1D2_cross.shape, 'jkl->jkla')
             mesh_dict[surf_name]['panel_normal'] = normal_vec
 
-            panel_center_mod = Rc - normal_vec*1.e-6
-            # panel_center_mod = Rc 
-            mesh_dict[surf_name]['panel_center_mod'] = panel_center_mod
-
             m_dir = S3 - Rc
             m_norm = csdl.norm(m_dir, axes=(3,))
             m_vec = m_dir / csdl.expand(m_norm, m_dir.shape, 'jkl->jkla')
             l_vec = csdl.cross(m_vec, normal_vec, axis=3)
             # this also tells us that normal_vec = cross(l_vec, m_vec)
+
+            if bc == 'Dirichlet':
+                panel_center_mod = Rc - normal_vec*1.e-6
+            elif bc == 'Neumann':
+                panel_center_mod = Rc 
+
+            mesh_dict[surf_name]['panel_center_mod'] = panel_center_mod
 
             mesh_dict[surf_name]['panel_x_dir'] = l_vec
             mesh_dict[surf_name]['panel_y_dir'] = m_vec
@@ -103,9 +106,18 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False, bc='Dir
             mesh_dict[surf_name]['delta_coll_point'] = delta_coll_point
 
             nodal_vel = mesh_dict[surf_name]['nodal_velocity']
-            mesh_dict[surf_name]['nodal_cp_velocity'] = (
+            # mesh_dict[surf_name]['nodal_cp_velocity'] = (
+            #     nodal_vel[:,:-1,:-1,:]+nodal_vel[:,:-1,1:,:]+\
+            #     nodal_vel[:,1:,1:,:]+nodal_vel[:,1:,:-1,:]) / 4.
+            coll_point_velocity = (
                 nodal_vel[:,:-1,:-1,:]+nodal_vel[:,:-1,1:,:]+\
                 nodal_vel[:,1:,1:,:]+nodal_vel[:,1:,:-1,:]) / 4.
+            collocation_velocity = mesh_dict['collocation_velocity'] # prescribed velocity @ collocation
+            
+            if collocation_velocity is None:
+                mesh_dict[surf_name]['coll_point_velocity'] = coll_point_velocity
+            else:
+                mesh_dict[surf_name]['coll_point_velocity'] = coll_point_velocity + collocation_velocity
 
             # computing planform area
             panel_width_spanwise = csdl.norm((mesh[:,:,1:,:] - mesh[:,:,:-1,:]), axes=(3,))
@@ -278,6 +290,7 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False, bc='Dir
         # CP DELTA CALCULATION MIGHT NEED TO BE DONE IN A SEPARATE LOOP
         num_cell_per_type = [len(cell_adjacency_types[cell_type]) for cell_type in cell_types]
         num_cells = sum(num_cell_per_type)
+        mesh_dict['num_cells'] = num_cells
 
         panel_normal = csdl.Variable(value=np.zeros((num_nodes, num_cells, 3)))
         panel_x_dir = csdl.Variable(value=np.zeros(panel_normal.shape))

@@ -5,6 +5,7 @@ from pathlib import Path
 from VortexAD.core.pm_class_tri import PanelMethodTri
 from VortexAD.core.pm_class import PanelMethod
 from VortexAD.core.vlm_class import VortexLatticeMethod
+from VortexAD.core.pfse_class import PFSE
 
 # panel method mesh/geometry utility functions
 # from VortexAD.utils.unstructured_grids.cell_adjacency_old import find_cell_adjacency_old
