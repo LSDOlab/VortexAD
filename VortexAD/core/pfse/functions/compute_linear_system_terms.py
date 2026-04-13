@@ -5,10 +5,10 @@ from VortexAD.core.elements.doublet import compute_doublet_influence_new
 from VortexAD.core.elements.source import compute_source_influence_new
 from VortexAD.core.elements.vortex_ring import compute_vortex_line_ind_vel
 
-def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dict, sigma, mu_w, batch_size, bc):
+def compute_linear_system_terms(pm_mesh_dict, vlm_vectorized_dict, wake_mesh_dict, sigma, mu_w, num_tot_panels, batch_size, bc):
 
-    num_nodes       = coll_point_eval.shape[0]
-    num_tot_panels  = coll_point_eval.shape[1]
+    num_nodes       = 1
+    num_tot_panels  = num_tot_panels
 
     # panel method cell types
     cells = pm_mesh_dict['cell_point_indices'] # keys are cell types, entries are points for each cell
@@ -30,9 +30,9 @@ def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dic
             batch_dims = [1]*2+[None]*8
 
         elif bc_method == 'VLM': # applying no-penetration BC for VLM surface
-            coll_point_eval = vlm_vectorized_dict['panel_center_mod']
+            coll_point_eval = vlm_vectorized_dict['panel_centers']
             normal_vec_eval = vlm_vectorized_dict['panel_normal']
-            batch_dims = [1]*2+[None]*1
+            
         num_panels_iter_i = coll_point_eval.shape[1]
         stop_i += num_panels_iter_i
 
@@ -48,36 +48,78 @@ def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dic
         start_j, stop_j = 0, 0
         for j, cell_type_j in enumerate(cell_types): # looping over column sections
             influence_method = influence_methods[j] # method where singularity comes from
-            batch_dims = [1]*2+[None]*1 # for bc_method == 'VLM'
+            
+            
+            AIC_func = PM_BC_AIC_batched
+            if bc_method == 'PM':
+                bc_batch = bc
+                if influence_method == 'PM':
+                    batch_dims = [1]*2+[None]*9
+                elif influence_method == 'VLM':
+                    batch_dims = [1]*2+[None]*8
+
+            elif bc_method == 'VLM':
+                bc_batch = 'Neumann'
+                if influence_method == 'PM':
+                    batch_dims = [1]*2+[None]*9
+                elif influence_method == 'VLM':
+                    batch_dims = [1]*2+[None]*1 # for bc_method == 'VLM'
+                    AIC_func = VLM_BC_AIC_batched
+
             if influence_method == 'PM':
-                AIC_func = PM_BC_AIC_batched
                 mesh_dict = pm_mesh_dict
                 panel_corners   = mesh_dict['panel_corners_' + cell_type_j] # (nn, num_tot_panels, 3, 3) 
-                if bc_method == 'PM':
-                    coll_point      = mesh_dict['panel_center_' + cell_type_j] # (nn, num_tot_panels, 3)
-                    panel_x_dir     = mesh_dict['panel_x_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
-                    panel_y_dir     = mesh_dict['panel_y_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
-                    panel_normal    = mesh_dict['panel_normal_' + cell_type_j] # (nn, num_tot_panels, 3)
-                    S               = mesh_dict['S_' + cell_type_j]
-                    SL              = mesh_dict['SL_' + cell_type_j]
-                    SM              = mesh_dict['SM_' + cell_type_j]
-
-                    batch_dims = [1]*2+[None]*9 # extra input at the end for the source terms
-
+                coll_point      = mesh_dict['panel_center_' + cell_type_j] # (nn, num_tot_panels, 3)
+                panel_x_dir     = mesh_dict['panel_x_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
+                panel_y_dir     = mesh_dict['panel_y_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
+                panel_normal    = mesh_dict['panel_normal_' + cell_type_j] # (nn, num_tot_panels, 3)
+                S               = mesh_dict['S_' + cell_type_j]
+                SL              = mesh_dict['SL_' + cell_type_j]
+                SM              = mesh_dict['SM_' + cell_type_j]
             elif influence_method == 'VLM':
-                AIC_func = VLM_BC_AIC_batched
                 mesh_dict = vlm_vectorized_dict
-                panel_corners   = mesh_dict['panel_corners_'] # (nn, num_tot_panels, 3, 3) 
-                if bc_method == 'PM':
-                    coll_point      = mesh_dict['panel_center_'] # (nn, num_tot_panels, 3)
-                    panel_x_dir     = mesh_dict['panel_x_dir_'] # (nn, num_tot_panels, 3)
-                    panel_y_dir     = mesh_dict['panel_y_dir_'] # (nn, num_tot_panels, 3)
-                    panel_normal    = mesh_dict['panel_normal_'] # (nn, num_tot_panels, 3)
-                    S               = mesh_dict['S_']
-                    SL              = mesh_dict['SL_']
-                    SM              = mesh_dict['SM_']
+                panel_corners   = mesh_dict['panel_corners'] # (nn, num_tot_panels, 3, 3)
+                coll_point      = mesh_dict['panel_centers'] # (nn, num_tot_panels, 3)
+                panel_x_dir     = mesh_dict['panel_x_dir'] # (nn, num_tot_panels, 3)
+                panel_y_dir     = mesh_dict['panel_y_dir'] # (nn, num_tot_panels, 3)
+                panel_normal    = mesh_dict['panel_normal'] # (nn, num_tot_panels, 3)
+                S               = mesh_dict['S']
+                SL              = mesh_dict['SL']
+                SM              = mesh_dict['SM']
+                
+            # if influence_method == 'PM':
+            #     AIC_func = PM_BC_AIC_batched
+            #     mesh_dict = pm_mesh_dict
+            #     panel_corners   = mesh_dict['panel_corners_' + cell_type_j] # (nn, num_tot_panels, 3, 3) 
+            #     if bc_method == 'PM':
+            #         coll_point      = mesh_dict['panel_center_' + cell_type_j] # (nn, num_tot_panels, 3)
+            #         panel_x_dir     = mesh_dict['panel_x_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
+            #         panel_y_dir     = mesh_dict['panel_y_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
+            #         panel_normal    = mesh_dict['panel_normal_' + cell_type_j] # (nn, num_tot_panels, 3)
+            #         S               = mesh_dict['S_' + cell_type_j]
+            #         SL              = mesh_dict['SL_' + cell_type_j]
+            #         SM              = mesh_dict['SM_' + cell_type_j]
 
-                    batch_dims = [1]*2+[None]*8 # no extra input because we only need the AIC mu matrix
+            #     batch_dims = [1]*2+[None]*9 # extra input at the end for the source terms
+
+            # elif influence_method == 'VLM':
+            #     batch_dims = [1]*2+[None]*1
+            #     # AIC_func = VLM_BC_AIC_batched
+            #     mesh_dict = vlm_vectorized_dict
+            #     panel_corners   = mesh_dict['panel_corners'] # (nn, num_tot_panels, 3, 3) 
+            #     if bc_method == 'PM':
+            #         AIC_func = PM_BC_AIC_batched # need panel method interactions here
+            #         coll_point      = mesh_dict['panel_centers'] # (nn, num_tot_panels, 3)
+            #         panel_x_dir     = mesh_dict['panel_x_dir'] # (nn, num_tot_panels, 3)
+            #         panel_y_dir     = mesh_dict['panel_y_dir'] # (nn, num_tot_panels, 3)
+            #         panel_normal    = mesh_dict['panel_normal'] # (nn, num_tot_panels, 3)
+            #         S               = mesh_dict['S']
+            #         SL              = mesh_dict['SL']
+            #         SM              = mesh_dict['SM']
+
+            #         bc = 'Neumann' # hard coding bc we need normal velocity
+
+            #         batch_dims = [1]*2+[None]*8 # no extra input because we only need the AIC mu matrix
             num_panels_iter_j = panel_corners.shape[1]
             stop_j += num_panels_iter_j
             AIC_batch_func = csdl.experimental.batch_function(
@@ -109,7 +151,7 @@ def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dic
                         coll_point_eval,
                         normal_vec_eval,
                         panel_corners,
-                        do_matvec=False
+                        # do_matvec=False
                     )
             elif influence_method == 'PM':
                 # if bc_method == 'VLM':
@@ -129,10 +171,10 @@ def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dic
                 #         do_source=False,
                 #         do_wake=False
                 #     )
-                if bc_method == 'PM':
-                    bc_batch = bc
-                elif bc_method == 'VLM':
-                    bc_batch='Neumann'
+                # if bc_method == 'PM':
+                #     bc_batch = bc
+                # elif bc_method == 'VLM':
+                #     bc_batch='Neumann'
                 
                 outputs = AIC_batch_func(
                     coll_point_eval, # where potential or velocity are induced
@@ -153,9 +195,15 @@ def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dic
                 AIC_mu_block = outputs[0]
                 RHS_sigma_block = outputs[1]
 
-            AIC_mu = AIC_mu.set(csdl.slice[:,start_i:stop_i, start_j:stop_j], AIC_mu_block)
+            AIC_mu = AIC_mu.set(
+                csdl.slice[:,start_i:stop_i, start_j:stop_j], 
+                AIC_mu_block.reshape((1, num_panels_iter_i, num_panels_iter_j))
+            )
             if influence_method == 'PM':
-                RHS_sigma = RHS_sigma.set(csdl.slice[:, start_i:stop_i, j], RHS_sigma_block)
+                RHS_sigma = RHS_sigma.set(
+                    csdl.slice[:, start_i:stop_i, j], 
+                    RHS_sigma_block.reshape(num_nodes, num_panels_iter_i)
+                )
 
             start_j += num_panels_iter_j
         start_i += num_panels_iter_i
@@ -173,10 +221,18 @@ def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dic
             AIC_func = PM_BC_AIC_batched
 
         elif bc_method == 'VLM': # applying no-penetration BC for VLM surface
-            coll_point_eval = vlm_vectorized_dict['panel_center_mod']
+            coll_point_eval = vlm_vectorized_dict['panel_centers']
             normal_vec_eval = vlm_vectorized_dict['panel_normal']
             batch_dims = [1]*2+[None]*2 # extra at the end bc of matvec
             AIC_func = VLM_BC_AIC_batched
+
+        
+        AIC_batch_func = csdl.experimental.batch_function(
+            AIC_func,
+            # batch_size=batch_size,
+            batch_size=batch_size_surf, # NOTE: CHANGE TO BATCH SIZE OF WAKE?
+            batch_dims=batch_dims
+        )
 
         num_panels_iter = coll_point_eval.shape[1]
         stop_i += num_panels_iter
@@ -202,26 +258,31 @@ def compute_linear_system_terms(pm_mesh_dict, wake_mesh_dict, vlm_vectorized_dic
                 S_w, # panel that induces potential or velocity
                 SL_w, # panel that induces potential or velocity
                 SM_w, # panel that induces potential or velocity
-                vec=mu_w,
+                mu_w,
                 BC=bc,
                 do_source=False,
                 do_wake=True
             )
+            # AIC_mu_w_matvec_block = csdl.Variable(value=np.ones(num_panels_iter,))
         elif bc_method == 'VLM':
             AIC_mu_w_matvec_block = AIC_batch_func(
                 coll_point_eval,
                 normal_vec_eval,
                 panel_corners_w,
-                mu=mu_w,
+                mu_w,
                 do_matvec=True
             )
+            # AIC_mu_w_matvec_block = csdl.Variable(value=np.ones(num_panels_iter,))
         
-        RHS_w = RHS_w.set(csdl.slice[:, start_i:stop_i], AIC_mu_w_matvec_block)
+        RHS_w = RHS_w.set(
+            csdl.slice[:, start_i:stop_i], 
+            AIC_mu_w_matvec_block.reshape(num_nodes, num_panels_iter)
+        )
         start_i += num_panels_iter
 
     return AIC_mu, RHS_sigma, RHS_w
 
-def PM_BC_AIC_batched(coll_point, normal_vec_eval, panel_corners, panel_center, panel_x_dir, panel_y_dir,
+def PM_BC_AIC_batched(coll_point, normal_vec_eval, panel_center, panel_corners,  panel_x_dir, panel_y_dir,
                         panel_normal, S_j, SL_j, SM_j, vec=None, BC='Dirichlet', do_source=False, do_wake=False):
     '''
     Different options to support:
@@ -406,10 +467,10 @@ def PM_BC_AIC_batched(coll_point, normal_vec_eval, panel_corners, panel_center, 
         do matvec with the doublet AIC (this will be for the wakes)
     '''
     if do_source: # influence of surface doublets and surface sources
-        AIC_sigma_matvec = csdl.einsum(AIC_sigma, vec, action='ijk,k->ij')
+        AIC_sigma_matvec = csdl.einsum(AIC_sigma, vec, action='ijk,ik->ij')
         return AIC_mu, AIC_sigma_matvec
     elif do_wake: # influence of wake doublets
-        AIC_mu_matvec = csdl.einsum(AIC_mu, vec, action='ijk,k->ij')
+        AIC_mu_matvec = csdl.einsum(AIC_mu, vec, action='ijk,ik->ij')
         return AIC_mu_matvec
     else: # influence of VLM doublets (no need to compute sources for these)
         return AIC_mu # only the matrix is an output so no input vector is needed for matvec
@@ -476,7 +537,7 @@ def VLM_BC_AIC_batched(coll_point, normal_vec_eval, panel_corners, mu=None, vc=N
     AIC_grid = AIC_vec.reshape((num_nodes, num_eval_pts, num_induced_pts))
 
     if do_matvec:
-        AIC_vec_matvec = csdl.einsum(AIC_grid, mu, action='ijk,k->ij')
+        AIC_vec_matvec = csdl.einsum(AIC_grid, mu, action='ijk,ik->ij')
         return AIC_vec_matvec # (num_nodes, num_eval_pts)
     elif not do_matvec:
         return AIC_grid # (num_nodes, num_eval_pts, num_induced_pts)

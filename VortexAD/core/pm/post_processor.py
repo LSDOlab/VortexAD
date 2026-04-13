@@ -183,7 +183,7 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     Q_inf = csdl.average(Q_inf_norm, axes=(1,))
     print(Q_inf.shape)
     if compressibility:
-        
+        # print(sos.shape)
         M_inf = Q_inf/sos
         beta = (1-M_inf**2)**0.5
         if constant_geometry:
@@ -197,6 +197,7 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
 
         # PG compressibility correction
         Cp = Cp/beta
+    # exit()
 
 
     Cp_cutoff_exp = csdl.expand(Cp_cutoff, Cp.shape)

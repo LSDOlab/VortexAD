@@ -11,9 +11,9 @@ def compute_wake_velocity(vectorized_mesh_dict, pm_mesh_dict, vlm_vectorized_dic
     TE_node_indices = vectorized_mesh_dict['TE_node_indices']
     TE_velocity = nodal_velocity[:,TE_node_indices,:]
     num_TE_pts = len(TE_node_indices)
-    num_wake_pts = x_w.shape[0]
+    num_wake_pts = x_w.shape[1]
     wake_vel = TE_velocity.expand((1, num_TE_pts, int(num_wake_pts/num_TE_pts), 3), 'ijk->ijak')
-    wake_vel = wake_vel.reshape((num_wake_pts, 3))
+    wake_vel = wake_vel.reshape((1, num_wake_pts, 3))
 
     if free_wake:
         ind_vel = compute_free_wake_velocity(
@@ -56,7 +56,9 @@ def compute_free_wake_velocity(pm_mesh_dict, vlm_vectorized_dict, total_wake_mes
     B \in (nw, np_pm)
     C \in (nw, nwp)
     '''
-    eval_pt = x_w.reshape((1,) + x_w.shape)
+    # eval_pt = x_w.reshape((1,) + x_w.shape)
+    eval_pt = x_w
+    num_wake_pts = x_w.shape[1]
 
     # region Panel method surface induced free-wake velocities
     cells = pm_mesh_dict['cell_point_indices'] # keys are cell types, entries are points for each cell
@@ -143,7 +145,7 @@ def compute_free_wake_velocity(pm_mesh_dict, vlm_vectorized_dict, total_wake_mes
     VLM_ind_vel = surf_induced_vel_batch_func(
         eval_pt,
         panel_corners,
-        mu,
+        mu[:,stop_j:],
         vc=vc_body # constant core model on the body
     )
     # endregion
@@ -160,8 +162,8 @@ def compute_free_wake_velocity(pm_mesh_dict, vlm_vectorized_dict, total_wake_mes
         batch_dims=[1]+[None]*3
     )
 
-    wake_panel_corners = total_wake_mesh_dict['wake_corners']
-    vc_wake = total_wake_mesh_dict['wake_core_radius']
+    wake_panel_corners = total_wake_mesh_dict['panel_corners']
+    vc_wake = total_wake_mesh_dict['vortex_core_radius']
 
     wake_ind_vel = wake_induced_vel_batch_func(
         eval_pt,
@@ -172,6 +174,7 @@ def compute_free_wake_velocity(pm_mesh_dict, vlm_vectorized_dict, total_wake_mes
     # endregion
 
     ind_vel = PM_doublet_ind_vel+PM_source_ind_vel+VLM_ind_vel+wake_ind_vel
+    ind_vel = ind_vel.reshape((1, num_wake_pts, 3))
 
     return ind_vel
 
@@ -359,12 +362,14 @@ def doublet_induced_vel_batched(coll_point, panel_corners, mu, vc):
         vc=vc_list[-1]
     )
     AIC_vel_vec_list.append(asdf)
-    AIC_vel_vec = sum(AIC_vel_vec_list)[0,:]
+    AIC_vel_vec = sum(AIC_vel_vec_list)
 
-    ind_vel = csdl.Variable(value=np.zeros((num_eval_pts, 3)))
-    for i in range(3):
-        ind_vel = ind_vel.set(
-            csdl.slice[:,i],
-            csdl.sum(AIC_vel_vec[:,i]*mu)
-        )
+    AIC_vel = AIC_vel_vec.reshape((1, num_eval_pts, num_induced_pts, 3))
+    ind_vel = csdl.einsum(AIC_vel, mu, action='ijkl,ik->ijl')
+    # ind_vel = csdl.Variable(value=np.zeros((num_eval_pts, 3)))
+    # for i in range(3):
+    #     ind_vel = ind_vel.set(
+    #         csdl.slice[:,i],
+    #         csdl.sum(AIC_vel_vec[:,i]*mu)
+    #     )
     return ind_vel

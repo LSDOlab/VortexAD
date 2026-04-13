@@ -10,15 +10,15 @@ import matplotlib.pyplot as plt
 V_inf = 10.
 V_inf = 185.
 nt, dt = 50, 0.001
-RPM = 850.
+RPM = 850.*2
 RPM2omega = (2*np.pi) / 60.
 omega = RPM * RPM2omega
 
-radius = 2.
+radius = 4.11/2
 chord = 0.2
 twist = 0.
-num_blades = 2
-nr = 5
+num_blades = 1
+nr = 11
 
 nondim_r = np.linspace(0.2,1,nr)
 pitch = 16
@@ -28,12 +28,13 @@ twist_dist = np.arctan(pitch/(np.pi*diam_test*nondim_r))*180/np.pi
 prop_meshes = gen_prop_mesh(
     radius=radius, 
     chord=chord, 
-    # twist=twist, 
-    twist=twist_dist, 
+    twist=twist, 
+    # twist=twist_dist, 
     num_blades=num_blades, 
     num_radial=nr, 
+    nc=3,
     direction='forward',
-    plot=False
+    plot=True
 )
 # exit()
 pms = prop_meshes.shape[1:]
@@ -100,7 +101,7 @@ input_dict = {
 
     'free_wake': True,
     'meshes': mesh_list,
-    'core_radius': chord*1e0,
+    'core_radius': chord*1e-3,
     'dissipation': True,
     # 'core_radius': 1.e-6,
 }
@@ -149,6 +150,7 @@ sim = csdl.experimental.JaxSimulator(
     additional_outputs=outputs,
     gpu=False
 )
+# exit()
 start = time.time()
 sim.run()
 end = time.time()
@@ -183,7 +185,7 @@ plt.yticks(fontsize=15)
 plt.savefig('prop_CT_vs_rev.pdf')
 plt.show()
 
-wake_form  = 'lines'
+wake_form  = 'grid'
 # bounds for nr=5
 # bounds = [-72.65183418851787, -47.69002929478038]
 
@@ -224,18 +226,18 @@ front_cam = dict(
     clipping_range=(28.6933, 38.9886),
 )
 
-vlm.plot_unsteady(
-    mesh_val_list,
-    x_w_val,
-    gamma_val,
-    gamma_w_val,
-    # bounds=bounds,
-    wake_form=wake_form,
-    interactive=False,
-    camera=front_cam,
-    name=f'prop_ani_front_nr_{nr}_nt_{nt}' + f'_{wake_form}',
-    fps=10
-)
+# vlm.plot_unsteady(
+#     mesh_val_list,
+#     x_w_val,
+#     gamma_val,
+#     gamma_w_val,
+#     # bounds=bounds,
+#     wake_form=wake_form,
+#     interactive=False,
+#     camera=front_cam,
+#     name=f'prop_ani_front_nr_{nr}_nt_{nt}' + f'_{wake_form}',
+#     fps=10
+# )
 
 # verifying dissipation
 bqs = 2.5
@@ -252,7 +254,7 @@ gamma_w_col_rel = gamma_w_col/gamma_w_col[0]
 rel_gamma_diff = dd_val-gamma_w_col_rel
 # rel_gamma_error = rel_gamma_diff/dd_val
 
-if True:
+if False:
     plt.figure(figsize=(7,5))
     plt.plot(time_array[:-1], dd_val[:-1], '-', linewidth=3, label='Analytical dissipation')
     plt.plot(time_array[:-1], gamma_w_col_rel[:-1], '*', markersize=8, label='UVLM wake dissipation')

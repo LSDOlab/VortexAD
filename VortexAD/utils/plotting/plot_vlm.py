@@ -91,16 +91,17 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
                     # wake_conn_iter = wake_connectivity[m][-i:,:,:].reshape((-1, 4)) # NEW METHOD 
                     # NOTE: the line above doesn't work bc it's the point indices for the end of the wake, but we need the connectivity for the start of the wake to connect to the TE
                     reshaped_wake_points = np.reshape(wake_points_iter, (-1, 3))
-                    vps = Mesh([reshaped_wake_points, wake_conn_iter], c='gray', alpha=1).linecolor('black')
+                    vps = Mesh([reshaped_wake_points, wake_conn_iter], c='gray', alpha=1)
+                    # vps = Mesh([reshaped_wake_points, wake_conn_iter], c='gray', alpha=1).linecolor('black')
                     # wake_color = np.reshape(wake_data_surf[:(i)*(nTp)], (-1,1)) # OLD METHOD
                     wake_color = np.reshape(wake_data_surf[-(i)*(nTp):], (-1,1)) # NEW METHOD
                     vps.cmap(cmap, wake_color, on='cells', vmin=min_mu, vmax=max_mu)
 
-                    # vps.compute_normals(points=True)
-                    # wake_normals = vps.vertex_normals
-                    # asdf = reshaped_wake_points + wake_normals
-                    # lines = Lines(reshaped_wake_points, asdf).linecolor('black')
-                    # vp += lines
+                    vps.compute_normals(points=True)
+                    wake_normals = vps.vertex_normals
+                    asdf = reshaped_wake_points + wake_normals
+                    lines = Lines(reshaped_wake_points, asdf).linecolor('black')
+                    vp += lines
 
                 elif wake_form == 'lines':
                     wpig = wake_points_iter.reshape((i+1, ns, 3))

@@ -9,8 +9,10 @@ def wake_geometry(num_nodes, mesh_dict, solver_options_dict, wake_points, wake_c
     TE_node_indices = mesh_dict['TE_node_indices']
     num_wake_panels = (nc_w-1)*num_TE_edges
     wake_mesh_dict = {}
+    wake_mesh_dict['TE_edges'] = mesh_dict['TE_edges']
+    wake_mesh_dict['TE_node_indices'] = mesh_dict['TE_node_indices']
 
-    wake_mesh = csdl.Variable(value=np.zeros((1, num_wake_pts, 3)))
+    # wake_mesh = csdl.Variable(value=np.zeros((1, num_wake_pts, 3)))
     wake_mesh = wake_points
     wake_mesh_dict['wake_mesh'] = wake_mesh
 
@@ -116,7 +118,7 @@ def wake_geometry(num_nodes, mesh_dict, solver_options_dict, wake_points, wake_c
     vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,0], rc_exp[:,:-1,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 0 to 1 based on wake corners above
     vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,1], rc_exp[:,1:,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 1 to 2 based on wake corners above
     vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,2], rc_exp[:,1:,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 2 to 3 based on wake corners above
-    vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,3], rc_exp[:,1:,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 3 to 0 based on wake corners above
+    vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,3], rc_exp[:,:-1,:].reshape(num_nodes, (nt-1)*num_TE_edges)) # point 3 to 0 based on wake corners above
     # NOTE: check the ordering in the values above, might not be the correct direction
     wake_mesh_dict['wake_core_radius'] = vortex_core_radius
 

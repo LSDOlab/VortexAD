@@ -40,10 +40,10 @@ def pre_processor(mesh_dict):
         mesh_dict[key]['bound_vortex_mesh'] = bound_vortex_mesh
 
         # collocation point computation (center of the vortex rings defined by vortex mesh)
-        p1_bd = bound_vortex_mesh[:,:-1, :-1, :]
-        p2_bd = bound_vortex_mesh[:,:-1, 1:, :]
-        p3_bd = bound_vortex_mesh[:,1:, 1:, :]
-        p4_bd = bound_vortex_mesh[:,1:, :-1, :]
+        # p1_bd = bound_vortex_mesh[:,:-1, :-1, :]
+        # p2_bd = bound_vortex_mesh[:,:-1, 1:, :]
+        # p3_bd = bound_vortex_mesh[:,1:, 1:, :]
+        # p4_bd = bound_vortex_mesh[:,1:, :-1, :]
 
         p1_bd = bound_vortex_mesh[:,:-1, :-1, :]
         p2_bd = bound_vortex_mesh[:,1:, :-1, :]
@@ -77,10 +77,13 @@ def pre_processor(mesh_dict):
         # B = p2_bd - p4_bd
         B = p4_bd - p2_bd
 
-        A = p2_bd-p1_bd
-        B = p4_bd-p1_bd
+        # not using diagonals, which will produce half the area
+        # A = p2_bd-p1_bd
+        # B = p4_bd-p1_bd
+
         normal_dir = csdl.cross(A, B, axis=3)
         panel_area = csdl.norm(normal_dir, axes=(3,)) / 2.
+        # panel_area = csdl.norm(normal_dir, axes=(3,))
 
         # vector normalization
         normal_vec = normal_dir/(csdl.expand(panel_area*2, out_shape=normal_dir.shape, action='ijk->ijka') + 1.e-12)
@@ -92,8 +95,8 @@ def pre_processor(mesh_dict):
         mesh_dict[key]['wetted_area'] = wetted_area
 
         # bound_vec = p2_bd - p1_bd
-        bound_vec = p4_bd - p1_bd
-        # bound_vec = p1_bd - p4_bd
+        # bound_vec = p4_bd - p1_bd
+        bound_vec = p1_bd - p4_bd
         mesh_dict[key]['bound_vec'] = bound_vec # NO NEED TO NORMALIZE BECAUSE WE NEED THE MAGNITUDE
 
         # VELOCITY COMPUTATIONS FOR COLLOCATION POINT AND BOUND VECTORS
@@ -103,19 +106,21 @@ def pre_processor(mesh_dict):
         # v2 = nodal_velocity[:, :-1, 1:, :]
         # v3 = nodal_velocity[:, 1:, 1:, :]
         # v4 = nodal_velocity[:, 1:, :-1, :]
+        # coll_point_velocity = 0.75*(v1+v2)/2. + 0.25*(v3+v4)/2.
 
         v1 = nodal_velocity[:, :-1, :-1, :]
         v2 = nodal_velocity[:, 1:, :-1, :]
         v3 = nodal_velocity[:, 1:, 1:, :]
         v4 = nodal_velocity[:, :-1, 1:, :]
+        coll_point_velocity = 0.75*(v1+v4)/2. + 0.25*(v2+v3)/2.
 
-        coll_point_velocity = 0.75*(v1+v2)/2. + 0.25*(v3+v4)/2.
         coll_vel_flag = mesh_dict[key]['coll_vel_flag']
         if coll_vel_flag:
             coll_point_velocity += mesh_dict[key]['coll_vel']
 
         mesh_dict[key]['collocation_velocity'] = coll_point_velocity
-        mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v2)/2. + 0.75*(v3+v4)/2.
+        # mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v2)/2. + 0.75*(v3+v4)/2.
+        mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v4)/2. + 0.75*(v2+v3)/2.
 
         # computing MAC of surface
         num_half_span = int((ns+1)/2)

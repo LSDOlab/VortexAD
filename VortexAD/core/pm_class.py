@@ -31,7 +31,7 @@ default_input_dict = {
     'collocation_velocity': False,
 
     # panel method conditions
-    'panel_method_BC': 'Dirichlet',
+    'BC': 'Dirichlet',
     'higher_order': False,
 
     # solver and wake mode; steady is fixed, unsteady is prescribed or free
@@ -247,7 +247,7 @@ class PanelMethod(object):
         # }
         self.flow_properties_flag = True
 
-    def setup_grid_properties(self, threshold_angle=125, plot=False):
+    def setup_grid_properties(self, threshold_angle=125, edges2ignore=False, plot=False):
         '''
         Sets up the mesh, cell adjacency, and trailing edge properties.
 
@@ -257,7 +257,7 @@ class PanelMethod(object):
 
         self.compute_cell_adjacency()
 
-        self.compute_TE_properties(threshold_angle=threshold_angle, plot=plot)
+        self.compute_TE_properties(threshold_angle=threshold_angle, edges2ignore=edges2ignore, plot=plot)
 
         self.grid_properties = True
 
@@ -386,7 +386,7 @@ class PanelMethod(object):
         self.cell_adjacency_flag = True
 
 
-    def compute_TE_properties(self, threshold_angle=125, plot=False):
+    def compute_TE_properties(self, threshold_angle=125, edges2ignore=False, plot=False):
         '''
         Computing trailing edge properties to set the Kutta condition
         '''
@@ -397,7 +397,9 @@ class PanelMethod(object):
             points=self.points,
             cells=self.cells,
             edges2cells=self.edges2cells,
-            threshold_theta=threshold_angle
+            points2cells=self.points2cells,
+            threshold_theta=threshold_angle,
+            edges2ignore=edges2ignore
         )
         self.upper_TE_cells = TE_properties[0]
         self.lower_TE_cells = TE_properties[1]

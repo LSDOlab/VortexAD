@@ -187,6 +187,7 @@ def unsteady_post_processor(mesh_dict, output_dict, mu, num_nodes, dt, nt,
     # force + pressure distributions
     output_dict['Cp'] = Cp
     output_dict['panel_forces'] = dF
+    output_dict['panel_moments'] = panel_moment
     output_dict['L_panel'] = panel_L
     output_dict['Di_panel'] = panel_Di
 

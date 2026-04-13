@@ -405,53 +405,106 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False, bc='Dir
 
         cells_per_type = [len(cell_adjacency_types[cell_type]) for cell_type in cell_types]
 
-        # inner list is the delta to set to zero for TE elements (tri: [0,2] and quad: [0,3])
-        upper_TE_cells_types = [[] for i in cells_per_type]
-        lower_TE_cells_types = [[] for i in cells_per_type]
-        lower_loc_list = [[] for i in cells_per_type] # inner list represents the indices for the cell types
-        upper_loc_list = [[] for i in cells_per_type] # inner list represents the indices for the cell types
+        # ==== OLD TRAILING EDGE NEIGHBOR REMOVAL ====
+        # # inner list is the delta to set to zero for TE elements (tri: [0,2] and quad: [0,3])
+        # upper_TE_cells_types = [[] for i in cells_per_type]
+        # lower_TE_cells_types = [[] for i in cells_per_type]
 
-        for i in range(num_TE_cells):
-            upper_cell_ind, lower_cell_ind = upper_TE_cells[i], lower_TE_cells[i]
+        # lower_loc_list = [[] for i in cells_per_type] # inner list represents the indices for the cell types
+        # upper_loc_list = [[] for i in cells_per_type] # inner list represents the indices for the cell types
+
+        # for i in range(num_TE_cells):
+        #     upper_cell_ind, lower_cell_ind = upper_TE_cells[i], lower_TE_cells[i]
 
             
-            start_j, stop_j = 0, 0
-            for j, cell_type_j in enumerate(cell_types):
-                cell_adjacency = np.array(cell_adjacency_types[cell_type_j])
-                stop_j += cells_per_type[j]
+        #     start_j, stop_j = 0, 0
+        #     for j, cell_type_j in enumerate(cell_types):
+        #         cell_adjacency = np.array(cell_adjacency_types[cell_type_j])
+        #         stop_j += cells_per_type[j]
 
-                # NOTE: THIS IS WRONG --> WE NEED TO CHECK IF THE upper_cell_ind and lower_cell_ind
-                # ARE IN THE RANGE OF PANEL INDICES CORRESPONDING TO THIS CELL TYPE
-                # start <= upper_cell_ind < stop to continue loop (& same for lower_cell_ind)
-                # check_upper = np.where(cell_adjacency == upper_cell_ind)[0]
-                # check_lower = np.where(cell_adjacency == lower_cell_ind)[0]
-                # if len(check_upper):
-                if upper_cell_ind <= start_j or upper_cell_ind > stop_j:
-                    start_j += cells_per_type[j]
-                    continue # ignores this panel for this cell type
+        #         # NOTE: THIS IS WRONG --> WE NEED TO CHECK IF THE upper_cell_ind and lower_cell_ind
+        #         # ARE IN THE RANGE OF PANEL INDICES CORRESPONDING TO THIS CELL TYPE
+        #         # start <= upper_cell_ind < stop to continue loop (& same for lower_cell_ind)
+        #         # check_upper = np.where(cell_adjacency == upper_cell_ind)[0]
+        #         # check_lower = np.where(cell_adjacency == lower_cell_ind)[0]
+        #         # if len(check_upper):
+        #         if upper_cell_ind <= start_j or upper_cell_ind > stop_j:
+        #             start_j += cells_per_type[j]
+        #             continue # ignores this panel for this cell type
+        #         upper_cell_neighbors = cell_adjacency[upper_cell_ind-start_j]
+        #         lower_cell_neighbors = cell_adjacency[lower_cell_ind-start_j]
+        #         upper_loc = np.where(lower_cell_neighbors == upper_cell_ind)[0][0]
+        #         lower_loc = np.where(upper_cell_neighbors == lower_cell_ind)[0][0]
 
-                upper_cell_neighbors = cell_adjacency[upper_cell_ind-start_j]
-                lower_cell_neighbors = cell_adjacency[lower_cell_ind-start_j]
-                upper_loc = np.where(lower_cell_neighbors == upper_cell_ind)[0][0]
-                lower_loc = np.where(upper_cell_neighbors == lower_cell_ind)[0][0]
-
-                upper_TE_cells_types[j].append(upper_cell_ind-start_j)
-                lower_TE_cells_types[j].append(lower_cell_ind-start_j)
-                upper_loc_list[j].append(upper_loc)
-                lower_loc_list[j].append(lower_loc)
+        #         upper_TE_cells_types[j].append(upper_cell_ind-start_j)
+        #         lower_TE_cells_types[j].append(lower_cell_ind-start_j)
+        #         upper_loc_list[j].append(upper_loc)
+        #         lower_loc_list[j].append(lower_loc)
                 
-                start_j += cells_per_type[j]
+        #         start_j += cells_per_type[j]
+
+        # ==== NEW TRAILING EDGE NEIGHBOR REMOVAL ====
+        upper_TE_cells_types = {ct: [] for ct in cell_types}
+        lower_TE_cells_types = {ct: [] for ct in cell_types}
+
+        lower_loc_list = {ct:[] for ct in cell_types} # inner list represents the indices for the cell types
+        upper_loc_list = {ct:[] for ct in cell_types} # inner list represents the indices for the cell types
+
+        cell_adjacency_list = []
+        local_cell_adjacency_list = []
+        for key in cell_adjacency_types.keys():
+            cell_adjacency = cell_adjacency_types[key]
+            len_cat = len(cell_adjacency)
+            cell_adjacency_list.extend(cell_adjacency)
+            asdf = list(np.arange(len_cat))
+            local_cell_adjacency_list.extend(asdf)
+
+        for i in range(num_TE_cells):
+            upper_cell_ind = upper_TE_cells[i]
+            lower_cell_ind = lower_TE_cells[i]
+
+            upper_cell_adjacency = np.array(cell_adjacency_list[upper_cell_ind])
+            nacu = len(upper_cell_adjacency) # num adjacent cells upper
+            ucli = local_cell_adjacency_list[upper_cell_ind]
+
+            lower_cell_adjacency = np.array(cell_adjacency_list[lower_cell_ind])
+            nacl = len(lower_cell_adjacency) # num adjacent cells lower
+            lcli = local_cell_adjacency_list[lower_cell_ind]
+
+            upper_loc = np.where(lower_cell_adjacency == upper_cell_ind)[0][0]
+            lower_loc = np.where(upper_cell_adjacency == lower_cell_ind)[0][0]
+
+            if nacu == 4:
+                upper_cell_type = 'quad'
+            elif nacu == 3:
+                upper_cell_type = 'triangle'
+            if nacl == 4:
+                lower_cell_type = 'quad'
+            elif nacl == 3:
+                lower_cell_type = 'triangle'
+
+            upper_TE_cells_types[upper_cell_type].append(ucli)
+            upper_loc_list[lower_cell_type].append(upper_loc) 
+            # the 3rd dimension identifying which adjacent element to ignore
+
+            lower_TE_cells_types[lower_cell_type].append(lcli)
+            lower_loc_list[upper_cell_type].append(lower_loc) 
+            # the 3rd dimension identifying which adjacent element to ignore
+
         
+        # ZEROING OUT SOME TRAILING EDGE NEIGHBORS
         for i, cell_type in enumerate(cell_types):
             # print(upper_TE_cells_types)
             # print(lower_loc_list)
             cell_deltas_type = mesh_dict['delta_coll_point_' + cell_type]
             cell_deltas_type = cell_deltas_type.set(
-                csdl.slice[:,upper_TE_cells_types[i], lower_loc_list[i],:],
+                # csdl.slice[:,upper_TE_cells_types[i], lower_loc_list[i],:], # OLD
+                csdl.slice[:,upper_TE_cells_types[cell_type], lower_loc_list[cell_type],:], # NEW
                 value=0.
             )
             cell_deltas_type = cell_deltas_type.set(
-                csdl.slice[:,lower_TE_cells_types[i], upper_loc_list[i],:],
+                # csdl.slice[:,lower_TE_cells_types[i], upper_loc_list[i],:], # OLD
+                csdl.slice[:,lower_TE_cells_types[cell_type], upper_loc_list[cell_type],:], # NEW
                 value=0.
             )
             mesh_dict['delta_coll_point_' + cell_type] = cell_deltas_type

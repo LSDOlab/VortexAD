@@ -16,14 +16,14 @@ recorder.start()
 pitch = csdl.Variable(value=np.array([5.]))
 # pitch = csdl.Variable(value=np.array([3.06]))
 
-nt = 30
+nt = 100
 
 test_case = 'NACA'
 if test_case == 'NACA':
     dt = .01
     V_inf = 10
     ref_area = 10.
-    nt = 50
+    nt = 100
     mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl' # triangles
     mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_quad.msh' # quad
     # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.stl' # triangles
@@ -76,6 +76,7 @@ panel_method = PanelMethod(
 pm_outputs = [
     'CL',
     'CDi',
+    'L',
     'Cp',
     'mu',
     # 'AIC_mu',
@@ -96,6 +97,7 @@ outputs = panel_method.evaluate()
 # read outputs
 CL = outputs['CL']
 CDi = outputs['CDi']
+L = outputs['L']
 CP = outputs['Cp']
 mu = outputs['mu']
 # AIC_mu = outputs['AIC_mu']
@@ -113,6 +115,7 @@ inputs = [pitch]
 # outputs = [CL, CDi, CP, mu, x_w, mu_w, mesh]
 # outputs = [CL, CDi, CP, mu, x_w, mu_w, mesh, AIC_fw_sigma, wake_vel]
 outputs = [CL, CDi, mu, x_w, mu_w, mesh]
+outputs.append(L)
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -138,6 +141,7 @@ print(f'average run time across {num_runs} runs: {(stop_total-start_total)/num_r
 
 CL_val = sim[CL]
 CDi_val = sim[CDi]
+L_val = sim[L]
 # CP_val = sim[CP]
 
 print('CL:', CL_val)
@@ -170,7 +174,7 @@ if True:
         wake_form=wake_form, # grid or lines
         interactive=False, 
         name=vid_name)
-exit()
+# exit()
 t_vec = np.linspace(0,nt*dt,nt)
 c=1
 if True:
@@ -188,12 +192,17 @@ if True:
 data_dict = {
     'time': t_vec,
     'CL': CL_val,
-    'CDi': CDi_val
+    'CDi': CDi_val,
+    'L': L_val,
+    'mu': mu_val,
+    'mu_w': mu_w_val,
+    'x_w': x_w_val,
 }
 file_name = 'PM_data_rect_wing.pkl'
 with open(file_name, 'wb') as file:
     pickle.dump(data_dict, file)
 
+exit()
 
 plotting_data_dict = {
     'mesh': mesh_val,
@@ -206,7 +215,6 @@ file_name = 'PM_plotting_data.pkl'
 with open(file_name, 'wb') as file:
     pickle.dump(plotting_data_dict, file)
 
-exit()
 
 wake_conn = panel_method.wake_connectivity
 wcs = wake_conn.shape

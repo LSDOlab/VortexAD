@@ -26,8 +26,8 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     # color = wake_color
     mesh_points = mesh # does not vary with time here
 
-    # vps = Mesh([np.reshape(mesh_points, (-1, 3)), connectivity], c=surface_color, alpha=1.).linecolor('black')
-    vps = Mesh([np.reshape(mesh_points, (-1, 3)), connectivity], c=surface_color, alpha=1.)
+    vps = Mesh([np.reshape(mesh_points, (-1, 3)), connectivity], c=surface_color, alpha=1.).linecolor('black')
+    # vps = Mesh([np.reshape(mesh_points, (-1, 3)), connectivity], c=surface_color, alpha=1.)
     Cp_color = np.reshape(Cp, (-1,1))
     if bounds:
         Cp_min, Cp_max = bounds[0], bounds[1]

@@ -54,7 +54,7 @@ def compute_vortex_line_ind_vel(p1, p2, p_eval, gamma=1., mode='surface', vc=Non
     r1 = p_eval-p1
     r2 = p_eval-p2
 
-    # alternative to fix sign of rollup (doesn't work fullyyyy)
+    # alternative to fix sign of rollup (doesn't work fully)
     # r1 = p_eval-p2
     # r2 = p_eval-p1
 

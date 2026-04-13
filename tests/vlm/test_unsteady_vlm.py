@@ -51,6 +51,7 @@ vlm = VortexLatticeMethod(
 )
 vlm_outputs = ['total_lift', 'total_CL', 'total_CDi', 'x_w', 'gamma', 'gamma_w', 'panel_force', 'net_gamma', 'wake_core_radius', 'dissipation_deriv']
 # vlm_outputs = ['CL', 'CDi', 'x_w', 'surf_CL', 'surf_CDi', 'gamma', 'gamma_w']
+vlm_outputs.append('steady_panel_force')
 vlm.declare_outputs(vlm_outputs)
 output_dict = vlm.evaluate()
 
@@ -77,12 +78,15 @@ panel_force =  output_dict['panel_force']
 core_radius = output_dict['wake_core_radius']
 diss_deriv = output_dict['dissipation_deriv']
 
+steady_panel_force = output_dict['steady_panel_force']
+
 inputs = [pitch]
 outputs = [L, CL, CDi, x_w]
 # outputs.extend([surf_0_CL, surf_1_CL, surf_0_CDi, surf_1_CDi])
 outputs.extend([gamma, gamma_w, net_gamma])
 outputs.extend(mesh_list)
 outputs.extend([core_radius, diss_deriv])
+outputs.append(steady_panel_force)
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -104,6 +108,25 @@ gamma_w_val = sim[gamma_w]
 print(L_val)
 print(CL_val)
 print(CDi_val)
+
+spf_val = sim[steady_panel_force]
+net_gamma_val = sim[net_gamma]
+
+fname = 'uvlm_sample_data.pkl'
+data_dict = {
+    'CL': CL_val,
+    'L': L_val,
+    'CDi': CDi_val,
+    'mu': gamma_val,
+    'mu_w': gamma_w_val,
+    'x_w': x_w_val,
+    'steady_panel_force': spf_val,
+    'net_gamma': net_gamma_val
+}
+
+with open(fname, 'wb') as file:
+    pickle.dump(data_dict, file)
+# exit()
 
 wake_form = 'lines'
 

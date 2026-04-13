@@ -62,10 +62,15 @@ def wake_pre_processor(solver_options_dict, mesh_dict, vectorized_mesh_dict, ode
         rc_exp = csdl.expand(rc, (nt, ns-1), 'i->ia')
 
         vortex_core_radius = csdl.Variable(value=np.zeros(wake_corners.shape[:-1]))
+        # vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,0], rc_exp[:-1,:]) # point 0 to 1 based on wake corners above
+        # vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,1], rc_exp[:-1,:]) # point 1 to 2 based on wake corners above
+        # vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,2], rc_exp[1:,:]) # point 2 to 3 based on wake corners above
+        # vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,3], rc_exp[1:,:]) # point 3 to 0 based on wake corners above
+
         vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,0], rc_exp[:-1,:]) # point 0 to 1 based on wake corners above
         vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,1], rc_exp[1:,:]) # point 1 to 2 based on wake corners above
         vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,2], rc_exp[1:,:]) # point 2 to 3 based on wake corners above
-        vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,3], rc_exp[1:,:]) # point 3 to 0 based on wake corners above
+        vortex_core_radius = vortex_core_radius.set(csdl.slice[:,:,3], rc_exp[:-1,:]) # point 3 to 0 based on wake corners above
 
         mesh_dict[key]['wake_core_radius'] = vortex_core_radius
 

@@ -1,6 +1,7 @@
 import numpy as np
 
-def TE_detection(points, cells, edges2cells, threshold_theta=75, use_caddee=False):
+def TE_detection(points, cells, edges2cells, points2cells, threshold_theta=75, 
+                 edges2ignore=False, use_caddee=False):
 
     # getting edge vectors of panel
     # points are ordered s.t. outward normal
@@ -73,6 +74,54 @@ def TE_detection(points, cells, edges2cells, threshold_theta=75, use_caddee=Fals
         # c3 = np.dot(l, n_cross)
         # if c3 < 0:
         #     continue
+
+        # CRITERIA 4: dealing with intersections between lifting surfaces and bodies (fuselage)
+        '''
+        main idea:
+        - each TE node is attached to a set of panels
+        - for each node on the edge, we get the cells that use that node
+        - when compared to the cells of interest (cell_1, cell_2), the other cells need to point
+            in a reasonably similar direction
+            - another way of saying this: normalized cross product < threshold ~ 0.25 or so
+        - this does not work well due to the wing tip mesh element orientation
+        - for now, we will just add a manual criteria to ignore certain edges
+        '''
+        if False:
+            pt_1, pt_2 = edge[0], edge[1]
+            pt_1_cells = points2cells[pt_1]
+            pt_2_cells = points2cells[pt_2]
+
+            pt_1_cross_prod_cond = []
+            pt_2_cross_prod_cond = []
+
+            for cell in pt_1_cells:
+                cell_pt_indices = combined_cells[cell]
+                cell_pts = points[cell_pt_indices]
+                ncp = len(cell_pts)
+                if ncp == 3:
+                    cross_prod = np.cross(cell_pts[1]-cell_pts[0], cell_pts[2]-cell_pts[1])
+                elif ncp == 4:
+                    cross_prod = np.cross(cell_pts[2]-cell_pts[0], cell_pts[3]-cell_pts[1])
+                
+                normal_vec = cross_prod / np.linalg.norm(cross_prod)
+
+                asdf = np.linalg.norm(np.cross(n1, normal_vec))
+                pt_1_cross_prod_cond.append(asdf)
+        # print(edge)
+        if edges2ignore:
+            edge_listify = list(edge)
+            edge_in_edges2ignore = False
+            for val in edges2ignore:
+                if edge_listify == val or edge_listify == val[::-1]:
+                    edge_in_edges2ignore = True
+
+            if edge_in_edges2ignore:
+                # print(f'edge {edge} removed')
+                continue
+        
+        # print(f'edge {edge} not removed')
+        # print(edges2ignore)
+
 
         # finding upper and lower cells
         # upper: other vertex is above the edge

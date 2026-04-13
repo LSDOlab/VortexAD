@@ -3,6 +3,9 @@ import csdl_alpha as csdl
 
 from VortexAD.core.pfse.pfse_solver import pfse_solver
 
+from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency, find_wake_cell_adjacency
+from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
+
 default_input_dict = {
     # flow properties
     'V_inf': None, # m/s
@@ -43,8 +46,9 @@ default_input_dict = {
     'free_wake': False,
 
     # panel method options
-    'boundary_condition': 'Dirichlet',
+    'BC_PM': 'Dirichlet',
     'Cp cutoff': -5., # minimum Cp (numerical reasons)
+    'reuse_AIC': False, # not used I think
 
 
     # ML airfoil model
@@ -68,11 +72,15 @@ class PFSE(object):
         self.mesh_types = [] # either thick or thin
         self.mesh_names = []
         self.surf_counter = 0
-        self.connectivity_list = []
         self.coll_vel_list = []
         self.coll_vel_flag_list = []
 
-    def add_thick_surface(self, mesh, name=None, connectivity=None, coll_vel=None):
+        # VLM surface data
+        self.vlm_meshes = []
+        self.vlm_coll_vel_list = []
+        self.vlm_coll_vel_flag_list = []
+
+    def add_thick_surface(self, mesh, connectivity, TE_properties, name=None, coll_vel=None):
         if name is None:
             name = f'surface_{self.surf_counter}'
 
@@ -82,16 +90,33 @@ class PFSE(object):
             coll_vel = -coll_vel # velocity relative to body --> sign change
             coll_vel_flag = True
         
-        self.meshes.append(mesh)
+        # self.meshes.append(mesh)
         self.mesh_types.append('thick')
         self.mesh_names.append(name)
-        self.connectivity_list.append(connectivity)
-        self.coll_vel_list.append(coll_vel)
-        self.coll_vel_flag_list.append(coll_vel_flag)
+        # self.coll_vel_list.append(coll_vel)
+        # self.coll_vel_flag_list.append(coll_vel_flag)
+
+        self.pm_coll_vel = coll_vel
+        self.pm_coll_vel_flag = coll_vel_flag
 
         self.surf_counter += 1
 
-    def add_thin_surface(self, mesh, name=None, connectivity=None, coll_vel=None):
+        # separating connectivity data
+        # self.points = connectivity[0]
+        self.points = mesh
+        self.cells = connectivity[1]
+        self.cell_adjacency = connectivity[2]
+        self.edges2cells = connectivity[3]
+        self.points2cells = connectivity[4]
+
+        # separating TE data
+
+        self.upper_TE_cells = TE_properties[0]
+        self.lower_TE_cells = TE_properties[1]
+        self.TE_edges = TE_properties[2]
+        self.TE_node_indices = TE_properties[3]
+
+    def add_thin_surface(self, mesh, name=None, coll_vel=None):
         if name is None:
             name = f'surface_{self.surf_counter}'
         coll_vel_flag = True
@@ -101,12 +126,15 @@ class PFSE(object):
             coll_vel = -coll_vel # velocity relative to body --> sign change
             coll_vel_flag = True
 
-        self.meshes.append(mesh)
+        # self.meshes.append(mesh)
         self.mesh_types.append('thin')
         self.mesh_names.append(name)
-        self.connectivity_list.append(None)
-        self.coll_vel_list.append(coll_vel)
-        self.coll_vel_flag_list.append(coll_vel_flag)
+        # self.coll_vel_list.append(coll_vel)
+        # self.coll_vel_flag_list.append(coll_vel_flag)
+
+        self.vlm_meshes.append(mesh)
+        self.vlm_coll_vel_list.append(coll_vel)
+        self.vlm_coll_vel_flag_list.append(coll_vel_flag)
 
         self.surf_counter += 1
 
@@ -147,10 +175,10 @@ class PFSE(object):
             num_nodes = check_num_nodes(V_inf)
             nn_V_inf = num_nodes
 
-        if self.solver_mode == 'unsteady':
-            nt = self.options_dict['nt']
-            nn_V_inf = nt
-            num_nodes = nt
+        # if self.solver_mode == 'unsteady':
+        nt = self.options_dict['nt']
+        nn_V_inf = nt
+        num_nodes = nt
 
         # converting flow velocity into a grid
 
@@ -213,8 +241,18 @@ class PFSE(object):
             elif len(V_inf.shape) == 4:
                 V_vec_nn = V_inf
 
-        self.mesh_velocities = []
-        for i, mesh in enumerate(self.meshes):
+        # setting up PM velocities
+        pm_mesh = self.points
+        if V_vec_nn.shape == (num_nodes, 3):
+            pm_velocity = -V_vec_nn.expand(pm_mesh.shape, 'ij->iaj')
+            self.pm_grid_velocity = pm_velocity
+
+        else:
+            ValueError('panel method velocity input error')
+
+        # setting up VLM velocities
+        self.vlm_mesh_velocities = []
+        for i, mesh in enumerate(self.vlm_meshes):
             # nc, ns = mesh.shape[1], mesh.shape[2]
             #  
             # flipping sign due to coordinate systems
@@ -226,10 +264,10 @@ class PFSE(object):
                     mesh_velocity = -V_vec_nn
                 else:
                     mesh_velocity = csdl.expand(-V_vec_nn, mesh.shape, 'ij->iabj')
-            self.mesh_velocities.append(mesh_velocity)
+            self.vlm_mesh_velocities.append(mesh_velocity)
 
-        if isinstance(V_inf, list):
-            self.mesh_velocities = [-val for val in V_inf]
+        # if isinstance(V_inf, list):
+        #     self.mesh_velocities = [-val for val in V_inf]
 
         self.num_nodes = num_nodes
         self.options_dict['num_nodes'] = num_nodes
@@ -245,7 +283,37 @@ class PFSE(object):
         #     self.coll_vel_flag[i] = True
 
     def generate_wake_connectivity(self):
-        pass
+
+        # PM
+        ns = len(self.TE_node_indices)
+        num_TE_edges = len(self.TE_edges)
+        TE_edges_zeroed = []
+        TE_nodes_zeroed_dup = []
+        for i in range(num_TE_edges):
+            edge = self.TE_edges[i]
+            new_edge = []
+            for j in range(2):
+                ind = np.where(self.TE_node_indices == edge[j])[0][0]
+                new_edge.append(ind)
+            TE_edges_zeroed.append(tuple(new_edge))
+            TE_nodes_zeroed_dup.extend(new_edge)
+        self.TE_nodes_zeroed = list(set(TE_nodes_zeroed_dup))
+
+
+        nt = self.options_dict['nt']
+        self.pm_wake_connectivity = np.array([[[
+            edge[0] + i*ns,
+            edge[0] + (i+1)*ns,
+            edge[1] + (i+1)*ns,
+            edge[1] + i*ns,
+        ] for edge in TE_edges_zeroed] for i in range(nt-1)])
+    
+        wake_cell_adjacency = find_wake_cell_adjacency(self.pm_wake_connectivity)
+        self.edges2cells_w = wake_cell_adjacency[0]
+
+        # VLM
+
+
 
     def declare_outputs(self, outputs):
         '''
@@ -254,9 +322,9 @@ class PFSE(object):
         self.output_name_list = outputs
 
     def evaluate(self):
-        self.options_dict['meshes'] = self.meshes
-        self.options_dict['connectivity'] = self.connectivity_list
-        self.options_dict['collocation_velocity'] = self.coll_vel_list
+        # self.options_dict['meshes'] = self.meshes
+        # self.options_dict['connectivity'] = self.connectivity_list
+        # self.options_dict['collocation_velocity'] = self.coll_vel_list
 
         self.generate_wake_connectivity()
 
@@ -264,9 +332,9 @@ class PFSE(object):
 
         self.__assemble_input_dict__()
 
-
         solver_output_dict = pfse_solver(
-            self.orig_mesh_dict,
+            self.pm_orig_mesh_dict,
+            self.vlm_orig_mesh_dict,
             self.options_dict
         )
         
@@ -277,17 +345,79 @@ class PFSE(object):
         return output_dict
     
     def __assemble_input_dict__(self):
-        self.orig_mesh_dict = {}
+        # PM
+        self.pm_orig_mesh_dict = {
+            'points': self.points,
+            'nodal_velocity': self.pm_grid_velocity,
+            'collocation_velocity': self.pm_coll_vel,
+            'coll_vel_flag': self.pm_coll_vel_flag,
+            'cell_point_indices': self.cells,
+            'cell_adjacency': self.cell_adjacency,
+            'points2cells': self.points2cells, # used for higher-order methods
+            'TE_node_indices': self.TE_node_indices,
+            'TE_edges': self.TE_edges,
+            'upper_TE_cells': self.upper_TE_cells,
+            'lower_TE_cells': self.lower_TE_cells,
+            'wake_connectivity': self.pm_wake_connectivity
+        }
+        # VLM
+        self.vlm_orig_mesh_dict = {}
 
-        num_surfaces = len(self.meshes)
+        num_surfaces = len(self.vlm_meshes)
         for i in range(num_surfaces):
             surf_name = self.mesh_names[i]
 
             sub_dict = {
-                'mesh': self.meshes[i],
-                'nodal_velocity': self.mesh_velocities[i],
-                'coll_vel': self.coll_vel_list[i],
-                'coll_vel_flag': self.coll_vel_flag_list[i]
+                'mesh': self.vlm_meshes[i],
+                'nodal_velocity': self.vlm_mesh_velocities[i],
+                'coll_vel': self.vlm_coll_vel_list[i],
+                'coll_vel_flag': self.vlm_coll_vel_flag_list[i]
             }
 
-            self.orig_mesh_dict[surf_name] = sub_dict
+            self.vlm_orig_mesh_dict[surf_name] = sub_dict
+    
+
+    def plot_unsteady(self, pm_mesh, vlm_meshes, x_w, surface_data, wake_data, 
+                      wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='sample_vlm_ani', fps=5):
+        from VortexAD.utils.plotting.plot_pfse import plot_wireframe
+
+        # PM plotting setup
+        cell_types = self.cells.keys()
+        num_cells = np.sum([len(self.cells[cell_type]) for cell_type in cell_types])
+        combined_cells = []
+        for cell_type in cell_types:
+            combined_cells += self.cells[cell_type].tolist()
+
+        pm_conn_params = [
+            self.TE_node_indices, 
+            self.TE_nodes_zeroed, 
+            self.edges2cells_w
+        ]
+
+        # VLM plotting setup
+        num_meshes = len(vlm_meshes)
+        vlm_mesh_connectivity = []
+        vlm_wake_connectivity = []
+        for i in range(num_meshes):
+            ms = vlm_meshes[i].shape
+            nt, nc, ns = ms[0], ms[1], ms[2] # num points
+            nt_p, nc_p, ns_p = nt-1, nc-1, ns-1 # num panels
+            surf_mesh_con = np.array([[[
+                j + i*ns,
+                j + (i+1)*ns,
+                j+1 + (i+1)*ns,
+                j+1 + i*ns,
+            ] for j in range(ns-1)] for i in range(nc-1)])
+            vlm_mesh_connectivity.append(surf_mesh_con)
+            wake_mesh_con = np.array([[[
+                j + i*ns,
+                j + (i+1)*ns,
+                j+1 + (i+1)*ns,
+                j+1 + i*ns,
+            ] for j in range(ns-1)] for i in range(nt-1)])
+            vlm_wake_connectivity.append(wake_mesh_con)
+
+        wake_connectivities = [self.pm_wake_connectivity] + vlm_wake_connectivity
+
+        plot_wireframe(pm_mesh, combined_cells, pm_conn_params, vlm_meshes, vlm_mesh_connectivity, x_w, wake_connectivities, surface_data, wake_data, 
+                       bounds=bounds, wake_form=wake_form, interactive=interactive, camera=camera, name=name, fps=fps)
