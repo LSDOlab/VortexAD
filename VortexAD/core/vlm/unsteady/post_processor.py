@@ -16,27 +16,39 @@ def compute_steady_forces(mesh_dict, vectorized_mesh_dict, solver_options_dict, 
         gamma[gamma_ind_pos] - gamma[gamma_ind_neg]
     )
 
-    bd_vec_induced_vel = compute_bd_vec_induced_vel(
+    bd_vec_induced_vel_list = compute_bd_vec_induced_vel(
         mesh_dict,
         vectorized_mesh_dict,
         solver_options_dict,
         gamma,
         gamma_w,
-        vc_body=solver_options_dict['core_radius']
+        # vc_body=solver_options_dict['core_radius'],
+        vc_body=None,
     )
+    body_ind_vel = bd_vec_induced_vel_list[0]
+    wake_ind_vel = bd_vec_induced_vel_list[1]
+    self_ind_vel = bd_vec_induced_vel_list[2]
+
+    # bd_vec_induced_vel = body_ind_vel + wake_ind_vel - self_ind_vel
+    bd_vec_induced_vel = body_ind_vel + wake_ind_vel
 
     bd_vec_fs_velocity = vectorized_mesh_dict['bound_vec_velocity'][0,:]
     bound_vec = vectorized_mesh_dict['bound_vec'][0,:]
     force_eval_pts = vectorized_mesh_dict['force_eval_pts'][0,:]
 
     total_velocity = bd_vec_fs_velocity + bd_vec_induced_vel
+    # total_velocity = bd_vec_fs_velocity
 
     net_gamma_exp = net_gamma.expand(net_gamma.shape + (3,), 'i->ia')
     panel_force = rho * csdl.cross(total_velocity, bound_vec, axis=1) * net_gamma_exp
+    # panel_force = rho * csdl.cross(bound_vec, total_velocity, axis=1) * net_gamma_exp
 
     output_dict = {
         'steady_panel_force': panel_force,
         'net_gamma': net_gamma,
+        'body_ind_vel': body_ind_vel,
+        'wake_ind_vel': wake_ind_vel,
+        'self_ind_vel': self_ind_vel,
     }
 
     return output_dict
@@ -45,6 +57,8 @@ def unsteady_post_processor(output_dict, solver_options_dict, gamma):
 
     dt = solver_options_dict['dt']
     rho = solver_options_dict['rho']
+    sos = solver_options_dict['sos']
+    compressibility = solver_options_dict['compressibility']
 
     net_gamma = output_dict['net_gamma']
     steady_panel_force =  output_dict['steady_panel_force']
@@ -60,6 +74,7 @@ def unsteady_post_processor(output_dict, solver_options_dict, gamma):
     dgamma_dt = dgamma_dt.set(
         csdl.slice[1:,:],
         (gamma[1:,:]-gamma[:-1,:])/dt # does NOT use the net circulation
+        # (net_gamma[1:,:]-net_gamma[:-1,:])/dt # does NOT use the net circulation
     )
 
     unsteady_panel_force = rho*csdl.expand(
@@ -69,6 +84,11 @@ def unsteady_post_processor(output_dict, solver_options_dict, gamma):
     )*panel_normal
 
     panel_force = steady_panel_force + unsteady_panel_force
+
+    if compressibility:
+        M_inf = csdl.norm(bd_vec_fs_velocity, axes=(2,))/sos
+        beta = 1/(1-M_inf**2)**0.5
+        panel_force = panel_force*beta.expand(panel_force.shape, 'ij->ija')
 
     ref_point = solver_options_dict['moment_reference']
     if not isinstance(ref_point, csdl.Variable):
@@ -246,6 +266,7 @@ def get_net_gamma_indices(mesh_dict):
 
 def compute_bd_vec_induced_vel(mesh_dict, vectorized_mesh_dict, solver_options_dict, gamma, gamma_w, vc_body):
     eval_pts = vectorized_mesh_dict['force_eval_pts']
+    # eval_pts = vectorized_mesh_dict['panel_centers']
     body_panel_normal = vectorized_mesh_dict['panel_normal']  # NOTE: CHECK IF THIS IS SUPPOSED TO BE A DIFFERENT NORMAL VECTOR, NOT THE SAME AS THE COLLOCATION ONE
     batch_size = solver_options_dict['partition_size']
     batch_dims = [1, None, None]
@@ -269,7 +290,9 @@ def compute_bd_vec_induced_vel(mesh_dict, vectorized_mesh_dict, solver_options_d
         body_panel_corners,
         gamma,
         vc=vc_body
-    )
+    ).reshape((num_body_panels, 3)) # removing stacking dimension + num_nodes initially
+
+    self_ind_vel = ind_vel_computation(eval_pts, body_panel_corners, gamma, vc_body)
 
     # wake panel influence
     wake_panel_corners = vectorized_mesh_dict['wake_corners']
@@ -291,12 +314,14 @@ def compute_bd_vec_induced_vel(mesh_dict, vectorized_mesh_dict, solver_options_d
         wake_panel_corners,
         gamma_w,
         vc_wake
-    )
+    ).reshape((num_body_panels, 3)) # removing stacking dimension + num_nodes initially
 
-    ind_vel = body_ind_vel + wake_ind_vel
-    ind_vel = ind_vel.reshape((num_body_panels, 3)) # removing stacking dimension + num_nodes initially
+    # ind_vel = body_ind_vel + wake_ind_vel
+    # ind_vel = body_ind_vel
+    # ind_vel = wake_ind_vel
 
-    return ind_vel
+    return body_ind_vel, wake_ind_vel, self_ind_vel
+    # return ind_vel
 
 def batched_induced_vel(eval_pt, panel_corners, gamma, vc=1.e-6):
     num_nodes = eval_pt.shape[0]
@@ -351,6 +376,46 @@ def batched_induced_vel(eval_pt, panel_corners, gamma, vc=1.e-6):
         ind_vel = ind_vel.set(
             csdl.slice[:,i],
             csdl.sum(AIC_vel_vec[:,i]*gamma)
+        )
+
+    return ind_vel
+
+def ind_vel_computation(eval_pt, panel_corners, gamma, vc=1e-6):
+    num_eval_pts = eval_pt.shape[1]
+    num_edges = panel_corners.shape[2]
+
+    AIC_vel_vec_list = []
+    if isinstance(vc, csdl.Variable):
+        vc_list = [vc[:,:,i] for i in range(num_edges)]
+    else:
+        vc_list = [vc]*num_edges
+    for  i in range(num_edges-1):
+        asdf = compute_vortex_line_ind_vel(
+            panel_corners[:,:,i], 
+            panel_corners[:,:,i+1], 
+            eval_pt[:,:], 
+            mode='wake', 
+            vc=vc_list[i]
+        )
+        AIC_vel_vec_list.append(asdf)
+    # print(eval_pt.shape)
+    # print(panel_corners.shape)
+    # exit()
+    asdf = compute_vortex_line_ind_vel(
+        panel_corners[:,:,-1], 
+        panel_corners[:,:,0], 
+        eval_pt[:,:], 
+        mode='wake', 
+        vc=vc_list[-1]
+    )
+    AIC_vel_vec_list.append(asdf)
+    AIC_vel_vec = sum(AIC_vel_vec_list)[0,:]
+
+    ind_vel = csdl.Variable(value=np.zeros((num_eval_pts, 3)))
+    for i in range(3):
+        ind_vel = ind_vel.set(
+            csdl.slice[:,i],
+            AIC_vel_vec[:,i]*gamma
         )
 
     return ind_vel

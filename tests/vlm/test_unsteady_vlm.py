@@ -43,7 +43,7 @@ input_dict = {
 
     'free_wake': True,
     'meshes': mesh_list,
-    'core_radius': 1.e-3
+    'core_radius': 1.e-6
 }
 
 vlm = VortexLatticeMethod(
@@ -92,7 +92,7 @@ sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
     additional_inputs=inputs,
     additional_outputs=outputs,
-    gpu=False
+    gpu=True
 )
 start = time.time()
 sim.run()
@@ -108,7 +108,7 @@ gamma_w_val = sim[gamma_w]
 print(L_val)
 print(CL_val)
 print(CDi_val)
-
+exit()
 spf_val = sim[steady_panel_force]
 net_gamma_val = sim[net_gamma]
 

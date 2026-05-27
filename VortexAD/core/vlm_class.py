@@ -175,7 +175,7 @@ class VortexLatticeMethod(object):
         elif isinstance(V_inf, list):
             V_vec_nn = np.array([0.])
         else:
-            num_nodes = V_inf.shape[0] # FIRST DIMENSION IS ALWAYS NUM NODES
+            # num_nodes = V_inf.shape[0] # FIRST DIMENSION IS ALWAYS NUM NODES
             if not isinstance(V_inf, csdl.Variable):
                 V_inf = csdl.Variable(value=-V_inf)
             # shape of (3,) means 3 flow instances with a x-velocity
@@ -185,7 +185,7 @@ class VortexLatticeMethod(object):
                 V_vec = csdl.Variable(value=0., shape=(num_nodes,3))
                 V_vec = V_vec.set(csdl.slice[:,0], value=-V_inf)
                 if alpha is None:
-                    V_vec_nn = V_vec_rot
+                    V_vec_nn = V_vec
                     # grid_velocity = csdl.expand(V_inf, grid_shape)
                 else:
                     pitch_rad = alpha * np.pi/180.
@@ -241,6 +241,7 @@ class VortexLatticeMethod(object):
                 
                 self.coll_velocity[i] = -input_coll_vel[i] # velocity relative to body --> sign change
                 self.coll_vel_flag[i] = True
+                print('yes coll vel')
 
         self.num_nodes = num_nodes
         self.options_dict['num_nodes'] = num_nodes

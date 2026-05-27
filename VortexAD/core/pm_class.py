@@ -64,6 +64,7 @@ default_input_dict = {
     'vc_parameters': [1.25643, 0, 2.5], # alpha, a1, bqs from core model
     'free_wake': False,
     'dissipation': False,
+    'integration_method': 'ForwardEuler'
 }
 
 output_options_dict = {

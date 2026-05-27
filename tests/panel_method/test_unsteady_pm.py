@@ -23,7 +23,7 @@ if test_case == 'NACA':
     dt = .01
     V_inf = 10
     ref_area = 10.
-    nt = 100
+    nt = 50
     mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl' # triangles
     mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_quad.msh' # quad
     # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.stl' # triangles
@@ -67,6 +67,10 @@ input_dict = {
     'nt': nt,
     'core_radius': 1.e-3,
     # 'ROM': [dummy_ROM.transpose(), dummy_ROM], # [phi^T, phi]
+    'integration_method': 'ForwardEuler',
+    # 'integration_method': 'RK2',
+    # 'integration_method': 'RK3',
+    # 'integration_method': 'RK4',
 }
 
 panel_method = PanelMethod(
@@ -93,7 +97,9 @@ panel_method.declare_outputs(pm_outputs)
 panel_method.setup_grid_properties(threshold_angle=125, plot=False) # optional for debugging
 
 outputs = panel_method.evaluate()
-
+# recorder.print_graph_structure()
+# recorder.visualize_graph(filename='pm_graph', trim_loops=True, visualize_style='hierarchical')
+# exit()
 # read outputs
 CL = outputs['CL']
 CDi = outputs['CDi']

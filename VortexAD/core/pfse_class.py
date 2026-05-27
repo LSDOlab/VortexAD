@@ -378,7 +378,8 @@ class PFSE(object):
     
 
     def plot_unsteady(self, pm_mesh, vlm_meshes, x_w, surface_data, wake_data, 
-                      wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='sample_vlm_ani', fps=5):
+                      wake_form='grid', color_wake=True, bounds=None, cmap='jet', interactive=False, 
+                      camera=False, screenshot=False, name='sample_vlm_ani', fps=5):
         from VortexAD.utils.plotting.plot_pfse import plot_wireframe
 
         # PM plotting setup
@@ -420,4 +421,4 @@ class PFSE(object):
         wake_connectivities = [self.pm_wake_connectivity] + vlm_wake_connectivity
 
         plot_wireframe(pm_mesh, combined_cells, pm_conn_params, vlm_meshes, vlm_mesh_connectivity, x_w, wake_connectivities, surface_data, wake_data, 
-                       bounds=bounds, wake_form=wake_form, interactive=interactive, camera=camera, name=name, fps=fps)
+                       bounds=bounds, wake_form=wake_form, color_wake=color_wake, interactive=interactive, camera=camera, name=name, fps=fps)

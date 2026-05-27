@@ -77,11 +77,14 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
                 wpe += num_surf_wake_panels
                 wake_mesh_surf = wake_mesh[i,wns:wne].copy().reshape((nt, ns, 3))
                 wake_data_surf = wake_data[i,wps:wpe]
+
+                wake_mesh_surf_start = wake_mesh[i-1, wns:wne].copy().reshape((nt, ns, 3))[-(i+1),:,:]
                 
                 # wake_points_iter = wake_mesh_surf[:i+1,:] # OLD METHOD
                 wake_points_iter = wake_mesh_surf[-(i+1):,:] # NEW METHOD
                 # wake_points_iter[0,:] = mesh_points[TE_indices]
-                wake_points_iter[0,:] = mesh_points[-1,:]
+                # wake_points_iter[0,:] = mesh_points[-1,:]
+                wake_points_iter[0,:] = wake_mesh_surf_start
                 wake_points_iter = wake_points_iter.reshape((ns*(i+1), 3))
 
                 nTp = wake_connectivity[m].shape[1]
@@ -99,7 +102,7 @@ def plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surf
 
                     vps.compute_normals(points=True)
                     wake_normals = vps.vertex_normals
-                    asdf = reshaped_wake_points + wake_normals
+                    asdf = reshaped_wake_points + wake_normals/10
                     lines = Lines(reshaped_wake_points, asdf).linecolor('black')
                     vp += lines
 

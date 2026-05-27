@@ -217,6 +217,7 @@ wing_LE_y = (mesh_orig[0,:-1,1] + mesh_orig[0,1:,1])/2 # LE y-coordinates of pan
 import matplotlib.animation as animation
 fig, ax = plt.subplots(figsize=(7,5))
 line = ax.plot(wing_LE_y, wpl_span[0,:])
+title = ax.set_title('frame: 0')
 ax.set(
     xlim=[np.min(wing_LE_y), np.max(wing_LE_y)], 
     ylim=[np.min(wpl_span), np.max(wpl_span)], 
@@ -227,6 +228,7 @@ ax.invert_xaxis()
 ax.grid()
 def update(frame):
     line[0].set_ydata(wpl_span[frame,:])
+    title.set_text(f'frame: {frame}')
     return line
 
 ani = animation.FuncAnimation(fig, update, frames=nt, interval=1/10*1000, repeat=False)

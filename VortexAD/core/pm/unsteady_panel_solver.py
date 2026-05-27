@@ -25,6 +25,8 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     coll_vel_flag       = orig_mesh_dict['coll_vel_flag']
     coll_vel            = orig_mesh_dict['collocation_velocity']
 
+    integration_method  = solver_options_dict['integration_method']
+
     solver_options_dict['ROM_orig'] = ROM # saving original
     if ROM: # NOTE: this only works for precomputed basis vectors with POD
         # for Krylov-subspace, we will need to adjust this
@@ -93,7 +95,10 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
             ode_states=[x_w.reshape(x_w.shape[1:]), mu_w.reshape(mu_w.shape[1:])],
             reuse_vars=reuse_vars,
         )
-        
+        # graph = csdl.get_current_recorder().active_graph
+        # graph.visualize('ode_graph')
+        # exit()
+
         dxw_dt, dmuw_dt = d_dt[0], d_dt[1]
         ozone_vars.d_states['x_w'] = dxw_dt
         ozone_vars.d_states['mu_w'] = dmuw_dt
@@ -163,7 +168,14 @@ def unsteady_panel_solver(orig_mesh_dict, solver_options_dict):
     
 
     approach = ozone.approaches.TimeMarching()
-    ode_problem = ozone.ODEProblem(ozone.methods.ForwardEuler(), approach)
+    im_options = {
+        'ForwardEuler': ozone.methods.ForwardEuler(),
+        'RK2': ozone.methods.ExplicitMidpoint(),
+        'RK3': ozone.methods.KuttaThirdOrder(),
+        'RK4': ozone.methods.RK4(),
+    }
+    integrator = im_options[integration_method]
+    ode_problem = ozone.ODEProblem(integrator, approach)
 
     ode_problem.add_state('x_w', x_w_0, store_history=store_state_history)
     ode_problem.add_state('mu_w', mu_w_0, store_history=store_state_history)

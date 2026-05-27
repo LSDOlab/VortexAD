@@ -16,7 +16,7 @@ import csdl_alpha as csdl
 # flow parameters
 V_inf = 185. # m/s
 # nt, dt = 50, 0.001
-nt, dt = 3, 0.00025
+nt, dt = 100, 0.0005
 pitch_angle = 5
 
 # wing panel mesh
@@ -50,7 +50,8 @@ TE_properties = TE_detection(
     points=points,
     cells=cells,
     edges2cells=edges2cells,
-    threshold_theta=125
+    threshold_theta=125,
+    points2cells=points2cells
 )
 upper_TE_cells = TE_properties[0]
 lower_TE_cells = TE_properties[1]
@@ -64,7 +65,7 @@ omega = RPM * RPM2omega
 
 radius = 2.
 chord = 0.2
-twist = 90.
+twist = 30.
 num_blades = 2
 nr = 5
 
@@ -127,7 +128,7 @@ prop_nodal_velocity[:,:,:,:,0] = -V_inf
 
 
 # instantiate recorder to assemble the graph
-recorder = csdl.Recorder(inline=True)
+recorder = csdl.Recorder(inline=False)
 recorder.start()
 
 
@@ -187,6 +188,8 @@ pfse_output_names = [
     'surf_CL',
     'surf_CDi',
     'surf_L',
+    'Cp',
+    'Cp_static'
 ]
 
 pfse.declare_outputs(pfse_output_names)
@@ -201,18 +204,22 @@ panel_forces = pfse_outputs['panel_forces']
 surf_CL = pfse_outputs['surf_CL']
 surf_CDi = pfse_outputs['surf_CDi']
 surf_L = pfse_outputs['surf_L']
+Cp = pfse_outputs['Cp']
+Cp_static = pfse_outputs['Cp_static']
 
 inputs = [pitch]
 outputs = [mu, x_w, mu_w, panel_forces]
 outputs.append(panel_mesh_nt)
 outputs.extend(vlm_meshes_nt)
 outputs.extend([surf_CL, surf_CDi, surf_L])
-exit()
+outputs.append(Cp)
+outputs.append(Cp_static)
+# exit()
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
     additional_inputs=inputs,
     additional_outputs=outputs,
-    gpu=False
+    gpu=True
 )
 
 start = time.time()
@@ -234,6 +241,8 @@ print(f'compile + run time: {stop-start} seconds')
 mu_val = sim[mu]
 mu_w_val = sim[mu_w]
 x_w_val = sim[x_w]
+Cp_val = sim[Cp]
+Cp_static_val = sim[Cp_static]
 panel_forces_val = sim[panel_forces]
 panel_mesh_nt_val = sim[panel_mesh_nt]
 vlm_meshes_nt_val = [sim[val] for val in vlm_meshes_nt]
@@ -284,7 +293,7 @@ front_cam = dict(
     distance=33.2317,
     clipping_range=(28.6933, 38.9886),
 )
-if True:
+if False:
     pfse.plot_unsteady(
         panel_mesh_nt_val,
         vlm_meshes_nt_val,
@@ -312,5 +321,46 @@ if True:
     plt.grid()
     plt.xlabel('Revolutions', fontsize=15)
     plt.ylabel(r'$C_L$', fontsize=15)
-    # plt.savefig('PFSE_prop_wing_CL_vs_rev.pdf')
+    plt.savefig(f'PFSE_prop_wing_CL_vs_rev_nt_{nt}_dt_{dt}.pdf')
     plt.show()
+
+Cp_all_val = np.zeros(mu.shape)
+num_PM_panels = Cp_val.shape[1]
+Cp_all_val[:,:num_PM_panels] = Cp_val
+# zeroing out the VLM pressures
+
+if True:
+    pfse.plot_unsteady(
+        panel_mesh_nt_val,
+        vlm_meshes_nt_val,
+        x_w_val,
+        Cp_all_val,
+        mu_w_val*0.,
+        wake_form=wake_form,
+        color_wake=False,
+        interactive=False,
+        camera=iso_cam,
+        name=f'sep_prop_wing_Cp_PFSE_iso_pitch_{pitch_angle}_nt_{nt}' + f'_{wake_form}',
+        fps=10
+    )
+
+Cp_static_all_val = np.zeros(mu.shape)
+num_PM_panels = Cp_val.shape[1]
+Cp_static_all_val[:,:num_PM_panels] = Cp_static_val
+# zeroing out the VLM pressures
+
+if False:
+    pfse.plot_unsteady(
+        panel_mesh_nt_val,
+        vlm_meshes_nt_val,
+        x_w_val,
+        Cp_static_all_val,
+        mu_w_val*0.,
+        wake_form=wake_form,
+        color_wake=False,
+        bounds=[-5,1],
+        interactive=False,
+        camera=iso_cam,
+        name=f'sep_prop_wing_Cp_static_PFSE_iso_pitch_{pitch_angle}_nt_{nt}' + f'_{wake_form}',
+        fps=10
+    )

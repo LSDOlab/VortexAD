@@ -172,7 +172,7 @@ def plot_prop_mesh(mesh):
 
         point_normals=vps.vertex_normals
 
-        asdf = reshaped_mesh_points + point_normals
+        asdf = reshaped_mesh_points + point_normals*0.1
         lines = Lines(reshaped_mesh_points, asdf)
         vp += lines
 

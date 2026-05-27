@@ -112,15 +112,19 @@ def pre_processor(mesh_dict):
         v2 = nodal_velocity[:, 1:, :-1, :]
         v3 = nodal_velocity[:, 1:, 1:, :]
         v4 = nodal_velocity[:, :-1, 1:, :]
-        coll_point_velocity = 0.75*(v1+v4)/2. + 0.25*(v2+v3)/2.
+        # coll_point_velocity = 0.75*(v1+v4)/2. + 0.25*(v2+v3)/2.
+        coll_point_velocity = 0.25*(v1+v4)/2. + 0.75*(v2+v3)/2. # 3/4 chord of original mesh
+        bound_vec_velocity = 0.75*(v1+v4)/2. + 0.25*(v2+v3)/2. # 1/4 chord of original mesh
 
         coll_vel_flag = mesh_dict[key]['coll_vel_flag']
         if coll_vel_flag:
             coll_point_velocity += mesh_dict[key]['coll_vel']
+            bound_vec_velocity += mesh_dict[key]['coll_vel']
 
         mesh_dict[key]['collocation_velocity'] = coll_point_velocity
-        # mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v2)/2. + 0.75*(v3+v4)/2.
-        mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v4)/2. + 0.75*(v2+v3)/2.
+        # mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v2)/2. + 0.75*(v3+v4)/2. # different mesh ordering
+        # mesh_dict[key]['bound_vector_velocity'] = 0.25*(v1+v4)/2. + 0.75*(v2+v3)/2.
+        mesh_dict[key]['bound_vector_velocity'] = bound_vec_velocity
 
         # computing MAC of surface
         num_half_span = int((ns+1)/2)

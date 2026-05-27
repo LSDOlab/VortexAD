@@ -217,11 +217,11 @@ def PM_free_wake_vel_batched(coll_point, panel_center, panel_corners, panel_x_di
     SM_j_exp = csdl.expand(SM_j, expanded_shape[:-1], 'ijk->iajk')
     SM_j_exp_vec = SM_j_exp.reshape(vectorized_shape[:-1])
 
-    a = coll_point_exp_vec - panel_corners_exp_vec # Rc - Ri
-    P_JK = coll_point_exp_vec - coll_point_j_exp_vec # RcJ - RcK
+    a = coll_point_exp_vec - panel_corners_exp_vec + 1.e-12 # Rc - Ri
+    P_JK = coll_point_exp_vec - coll_point_j_exp_vec + 1.e-12  # RcJ - RcK
     sum_ind = len(a.shape) - 1
 
-    A = csdl.norm(a+1.e-12, axes=(sum_ind,)) # norm of distance from CP of i to corners of j
+    A = csdl.norm(a, axes=(sum_ind,)) # norm of distance from CP of i to corners of j
     AL = csdl.sum(a*panel_x_dir_exp_vec, axes=(sum_ind,))
     AM = csdl.sum(a*panel_y_dir_exp_vec, axes=(sum_ind,)) # m-direction projection 
     PN = csdl.sum(P_JK*panel_normal_exp_vec, axes=(sum_ind,)) # normal projection of CP

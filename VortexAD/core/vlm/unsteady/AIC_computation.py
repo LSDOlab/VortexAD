@@ -42,7 +42,7 @@ def compute_AIC(mesh_dict, total_mesh_dict, solver_options_dict, eval_pt='colloc
         body_eval_pts,
         body_panel_normal,
         body_panel_corners,
-        vc=vc_body
+        vc=None
     )
     # print(AIC_body_vec.shape)
     # exit()

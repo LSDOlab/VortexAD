@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 plt.rcParams.update(plt.rcParamsDefault)
 
 def plot_wireframe(pm_mesh, pm_connectivity, pm_conn_params, vlm_meshes, vlm_connectivities, wake_mesh, wake_connectivities, surface_data, wake_data, 
-                   bounds=False, wake_form='grid', interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio', fps=5):
+                   bounds=False, wake_form='grid', color_wake=True, interactive=False, camera=False, surface_color='gray', cmap='jet', side_view=False, name='sample_gif', backend='imageio', fps=5):
     vedo.settings.default_backend = 'vtk'
     nt = surface_data.shape[0]
     num_vlm_meshes = len(vlm_meshes)
@@ -104,8 +104,9 @@ def plot_wireframe(pm_mesh, pm_connectivity, pm_conn_params, vlm_meshes, vlm_con
                 wake_conn_iter = pm_wake_connectivity[:i,:,:].reshape((i*nTp, 4)) # OLD METHOD (don't need to replace)
                 vps = Mesh([np.reshape(wake_points_iter, (-1, 3)), wake_conn_iter], c='gray', alpha=1).linecolor('black')
 
-                mu_wake_color = np.reshape(pm_wake_data[i,-(i)*(nTp):], (-1,1)) # NEW METHOD
-                vps.cmap(cmap, mu_wake_color, on='cells', vmin=min_mu, vmax=max_mu)
+                if color_wake:
+                    mu_wake_color = np.reshape(pm_wake_data[i,-(i)*(nTp):], (-1,1)) # NEW METHOD
+                    vps.cmap(cmap, mu_wake_color, on='cells', vmin=min_mu, vmax=max_mu)
 
             elif wake_form == 'lines':
                 ## NEW METHOD
@@ -129,10 +130,11 @@ def plot_wireframe(pm_mesh, pm_connectivity, pm_conn_params, vlm_meshes, vlm_con
                         adj_cells = wake_edges2cells[edge[::-1]]
                     edge_adj_cells.append(adj_cells)
                     # edge_color = np.average(wake_data[i,])
-                line_colors = [np.average(pm_wake_data[i,ind]) for ind in edge_adj_cells]
 
                 vps = Lines(line_pts, lw=3, c='black')
-                vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
+                if color_wake:
+                    line_colors = [np.average(pm_wake_data[i,ind]) for ind in edge_adj_cells]
+                    vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
             vp += vps
             vp += __doc__
 
@@ -169,9 +171,10 @@ def plot_wireframe(pm_mesh, pm_connectivity, pm_conn_params, vlm_meshes, vlm_con
                     # NOTE: the line above doesn't work bc it's the point indices for the end of the wake, but we need the connectivity for the start of the wake to connect to the TE
                     reshaped_wake_points = np.reshape(wake_points_iter, (-1, 3))
                     vps = Mesh([reshaped_wake_points, wake_conn_iter], c='gray', alpha=1).linecolor('black')
-                    # wake_color = np.reshape(wake_data_surf[:(i)*(nTp)], (-1,1)) # OLD METHOD
-                    wake_color = np.reshape(wake_data_surf[-(i)*(nTp):], (-1,1)) # NEW METHOD
-                    vps.cmap(cmap, wake_color, on='cells', vmin=min_mu, vmax=max_mu)
+                    if color_wake:
+                        # wake_color = np.reshape(wake_data_surf[:(i)*(nTp)], (-1,1)) # OLD METHOD
+                        wake_color = np.reshape(wake_data_surf[-(i)*(nTp):], (-1,1)) # NEW METHOD
+                        vps.cmap(cmap, wake_color, on='cells', vmin=min_mu, vmax=max_mu)
 
                     # vps.compute_normals(points=True)
                     # wake_normals = vps.vertex_normals
@@ -192,7 +195,8 @@ def plot_wireframe(pm_mesh, pm_connectivity, pm_conn_params, vlm_meshes, vlm_con
                         line_colors.extend([(wdsg[j,ind]+wdsg[j,ind+1])/2. for ind in range(ns-2)])
                         line_colors.append(wdsg[j,-1])
                     vps = Lines(line_pts, lw=3, c='black')
-                    vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
+                    if color_wake:
+                        vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
 
                 vp += vps
                 vp += __doc__

@@ -377,6 +377,7 @@ def pfse_solver(pm_orig_mesh_dict, vlm_orig_mesh_dict, solver_options_dict):
         'mu_w': mu_w,
         'x_w': x_w,
         'Cp': Cp,
+        'Cp_static': Cp_static,
 
         # total quantities
         'total_lift': total_lift,

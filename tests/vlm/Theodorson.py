@@ -18,8 +18,9 @@ recorder.start()
 
 rho = 1.225
 V_inf = 10.
-nt, dt = 150, 0.05
+nt, dt = 100, 0.05
 ns, nc = 14, 5
+# ns, nc = 21, 7
 AR = 10
 c = 1
 b = AR*c

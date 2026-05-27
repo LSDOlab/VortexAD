@@ -214,7 +214,11 @@ def vlm_ode_function(orig_mesh_dict, solver_options_dict, nt, dt, ode_states, re
         'RHS': RHS.reshape((1,) + RHS.shape),
         'BC': BC.reshape((1,) + BC.shape),
         'wake_influence': wake_influence.reshape((1,) + wake_influence.shape),
-        'dissipation_deriv': vde.reshape((1,)+vde.shape)
+        'dissipation_deriv': vde.reshape((1,)+vde.shape),
+
+        'body_ind_vel': output_dict['body_ind_vel'].reshape((1,) + panel_force.shape),
+        'wake_ind_vel': output_dict['wake_ind_vel'].reshape((1,) + panel_force.shape),
+        'self_ind_vel': output_dict['self_ind_vel'].reshape((1,) + panel_force.shape),
     }
 
     # for name in mesh_names:

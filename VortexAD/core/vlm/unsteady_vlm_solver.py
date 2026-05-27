@@ -98,6 +98,10 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
         wake_influence = outputs['wake_influence']
         dissipation_deriv = outputs['dissipation_deriv']
 
+        body_ind_vel = outputs['body_ind_vel']
+        wake_ind_vel = outputs['wake_ind_vel']
+        self_ind_vel = outputs['self_ind_vel']
+
         ozone_vars.profile_outputs['dxw_dt'] = dxw_dt.reshape((1,)+dxw_dt.shape)
 
         ozone_vars.profile_outputs['gamma'] = gamma
@@ -121,6 +125,10 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
         ozone_vars.profile_outputs['wake_influence'] = wake_influence
         ozone_vars.profile_outputs['dissipation_deriv'] = dissipation_deriv
 
+        ozone_vars.profile_outputs['body_ind_vel'] = body_ind_vel
+        ozone_vars.profile_outputs['wake_ind_vel'] = wake_ind_vel
+        ozone_vars.profile_outputs['self_ind_vel'] = self_ind_vel
+
         # for name in mesh_names:
         #     ozone_vars.profile_outputs[f'CL_surf_{name}'] = outputs[f'CL_surf_{name}']
         #     ozone_vars.profile_outputs[f'CDi_surf_{name}'] = outputs[f'CDi_surf_{name}']
@@ -134,24 +142,33 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
     meshes = [orig_mesh_dict[name]['mesh'] for name in mesh_names]
     mesh_velocities = [orig_mesh_dict[name]['nodal_velocity'] for name in mesh_names]
     
-    time_array = np.arange(0,nt*dt,dt)
-    ode_problem.add_dynamic_parameter('time', csdl.Variable(value=time_array))
+    # time_array = np.arange(0,nt*dt,dt)*dt
+    # ode_problem.add_dynamic_parameter('time', csdl.Variable(value=time_array))
+    time_array = np.linspace(0,nt,nt)*dt
+    ode_problem.add_dynamic_parameter('time', time_array)
 
     time_in_wake = np.zeros((nt, nt))
+    time_in_wake = csdl.Variable(value=np.zeros((nt, nt)))
     for i in range(1,nt):
-        time_in_wake[i,-i:] = time_array[1:(i+1)]
+        # time_in_wake[i,-i:] = time_array[1:(i+1)]
+        time_in_wake = time_in_wake.set(csdl.slice[i,-i:], time_array[1:(i+1)])
         # time_in_wake[i,:i] = time_array[1:i+1]
     
     velocity_activation = np.zeros((nt, nt))
     for i in range(nt):
-        # velocity_activation[i,:(i+1)] = 1.
-        velocity_activation[i,-(i+1):] = 1.
+        # original with no TE wake element adjustment
+        # velocity_activation[i,-(i+1):] = 1.
+        # corrrection with TE wake element adjustment
+        velocity_activation[i,-(i+1)] = 0.2
+        if i > 0:
+            velocity_activation[i,-(i):] = 1.
 
     kutta_activation = np.zeros((nt, nt-1))
     for i in range(0,nt-1):
         kutta_activation[i,-(i+1)] = 1.
 
-    time_in_wake_var = csdl.Variable(value=time_in_wake)
+    # time_in_wake_var = csdl.Variable(value=time_in_wake)
+    time_in_wake_var = time_in_wake
     ode_problem.add_dynamic_parameter('time_in_wake',time_in_wake_var)
 
     vel_activation_var = csdl.Variable(value=velocity_activation)
@@ -260,6 +277,10 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
     wake_corners = ode_outputs.profile_outputs['wake_corners']
     wake_core_radius = ode_outputs.profile_outputs['wake_core_radius']
 
+    body_ind_vel = ode_outputs.profile_outputs['body_ind_vel']
+    wake_ind_vel = ode_outputs.profile_outputs['wake_ind_vel']
+    self_ind_vel = ode_outputs.profile_outputs['self_ind_vel']
+
 
     
 
@@ -291,6 +312,10 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
         'BC': BC,
         'wake_influence': wake_influence,
         'dissipation_deriv': dissipation_deriv,
+
+        'body_ind_vel': body_ind_vel,
+        'wake_ind_vel': wake_ind_vel,
+        'self_ind_vel': self_ind_vel,
     }
 
     output_dict, surface_output_dict = unsteady_post_processor(
