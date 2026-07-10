@@ -134,6 +134,7 @@ def unsteady_vlm_solver(orig_mesh_dict, solver_options_dict):
         #     ozone_vars.profile_outputs[f'CDi_surf_{name}'] = outputs[f'CDi_surf_{name}']
     
     approach = ozone.approaches.TimeMarching()
+    # approach = ozone.approaches.TimeMarchingCheckpoints(num_checkpoints=20)
     ode_problem = ozone.ODEProblem(ozone.methods.ForwardEuler(), approach)
 
     mesh_names = list(orig_mesh_dict.keys())

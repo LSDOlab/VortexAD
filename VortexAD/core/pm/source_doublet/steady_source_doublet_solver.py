@@ -47,8 +47,8 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
         # return AIC_mu
     
         # mu, sigma, wake_dict, AIC_mu, AIC_sigma, AIC_mu_orig = mu_sigma_solver(num_nodes, mesh_dict, mode=mesh_mode, bc=boundary_condition)
-        mu, sigma, wake_dict, AIC_mu, AIC_sigma, RHS, AIC_mu_orig = mu_sigma_solver(
-            num_nodes, mesh_dict, mode=mesh_mode, batch_size=partition_size, 
+        mu, sigma, mu_wake, wake_dict, AIC_mu, AIC_sigma, RHS, AIC_mu_orig = mu_sigma_solver(
+            num_nodes, mesh_dict, solver_options_dict, mode=mesh_mode, batch_size=partition_size, 
             bc=BC, ROM=ROM, constant_geometry=reuse_AIC
         )
         # return mu
@@ -83,4 +83,8 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
 
     output_dict['mu'] = mu
     output_dict['sigma'] = sigma
+    output_dict['x_w'] = wake_dict['wake_mesh']
+    output_dict['mu_wake'] = mu_wake
+    if solver_options_dict['wake_relaxation']:
+        output_dict['V_w_relax'] = wake_dict['V_w_relax']
     return output_dict, mesh_dict, mu, sigma

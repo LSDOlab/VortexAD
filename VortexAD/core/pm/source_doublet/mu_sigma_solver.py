@@ -9,7 +9,7 @@ from VortexAD.core.elements.doublet import compute_doublet_influence_new
 from VortexAD.core.elements.vortex_ring import compute_vortex_line_ind_vel
 
 
-def mu_sigma_solver(num_nodes, mesh_dict, mode='structured', batch_size=None, bc='Dirichlet', ROM=False, constant_geometry=False):
+def mu_sigma_solver(num_nodes, mesh_dict, solver_options_dict, mode='structured', batch_size=None, bc='Dirichlet', ROM=False, constant_geometry=False):
 
     if mode == 'structured':
         surface_names = list(mesh_dict.keys())
@@ -24,7 +24,7 @@ def mu_sigma_solver(num_nodes, mesh_dict, mode='structured', batch_size=None, bc
         num_nodes = mesh_dict['nodal_velocity'].shape[0]
 
     # wake_mesh_dict = fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=0.001)
-    wake_mesh_dict = fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100, mesh_mode=mode, constant_geometry=constant_geometry)
+    wake_mesh_dict = fixed_wake_representation(mesh_dict, num_nodes, solver_options_dict, mesh_mode=mode, constant_geometry=constant_geometry)
 
     sigma = compute_source_strength(mesh_dict, num_nodes, num_panels=num_tot_panels, mesh_mode=mode, constant_geometry=constant_geometry)
     # V_inf_proj = sigma
@@ -162,8 +162,121 @@ def mu_sigma_solver(num_nodes, mesh_dict, mode='structured', batch_size=None, bc
     mu = loop_builder.add_stack(mu)
     loop_builder.finalize()
 
+    upper_TE_cells = mesh_dict['upper_TE_cells']
+    lower_TE_cells = mesh_dict['lower_TE_cells']
+    nwp = solver_options_dict['num_wake_planes']
+    wake_connectivity = wake_mesh_dict['wake_connectivity']
+
+    mu_w = mu[:,upper_TE_cells] - mu[:,lower_TE_cells]
+    mu_w_grid = mu_w.expand((mu_w.shape[0],) + wake_connectivity.shape[:-1], 'ij->iaj')
+    mu_w_vec = mu_w_grid.reshape((mu_w.shape[0], np.prod(wake_connectivity.shape[:-1])))
+
+    # wake relaxation
+    wake_relaxation = solver_options_dict['wake_relaxation']
+    if wake_relaxation:
+    # if False:
+        from VortexAD.core.pm.wake_relaxation_funcs import compute_wake_relaxation_vel, compute_wake_relaxation_influence, update_wake_mesh_params
+
+        K = solver_options_dict['K']
+        nwi = solver_options_dict['num_wake_iterations']
+        MAC = solver_options_dict['ref_chord']
+        nwpcl = solver_options_dict['nwpcl']
+        TE_node_indices = list(mesh_dict['TE_node_indices'])
+        num_TE_nodes = len(TE_node_indices)
+        wl_x = MAC*nwpcl # wake length in x
+        fractional_wake_loc_x = np.linspace(0,1,nwp+1)
+
+        dxl_no_span = fractional_wake_loc_x*wl_x
+
+        # dxl_no_span = csdl.Variable(value=np.zeros_like(fractional_wake_loc_x))
+        # dxl_no_span = dxl_no_span.set(
+        #     csdl.slice[1:],
+        #     value=fractional_wake_loc_x[1:] - fractional_wake_loc_x[:-1]
+        # )
+
+        # dxl_no_span = np.zeros_like(fractional_wake_loc_x)
+        # dxl_no_span[1:] = fractional_wake_loc_x[1:] - fractional_wake_loc_x[:-1]
+        # dxl_no_span *= wl_x
+
+        nswp = nwp+1 # num streamwise wake points including TE
+        dxl = csdl.expand(dxl_no_span, (num_nodes, nswp, num_TE_nodes), 'i->aib')
+
+        upper_TE_cells = mesh_dict['upper_TE_cells']
+        lower_TE_cells = mesh_dict['lower_TE_cells']
+
+        # initial conditions for loop builder feedback
+        mu_wr_0 = mu*1. # need to initialize
+        mu_w_0 = mu_w_vec
+
+        x_w = wake_mesh_dict['wake_mesh']
+        x_w_0 = x_w*1.
+
+        nodal_vel = mesh_dict['nodal_velocity']
+        TE_vel = nodal_vel[:,list(TE_node_indices),:]
+        V_inf = csdl.average(TE_vel, axes=(1,))
+        print(dxl.shape)
+        print(V_inf.shape)
+        pdt = K*dxl/csdl.norm(V_inf, axes=(1,))
+        pdt = pdt.expand(pdt.shape + (3,), 'ijk->ijka').reshape(pdt.shape[0], (nwp+1)*num_TE_nodes, 3)
+        # exit()
+        loop_vals = np.arange(nwi).tolist()
+        with csdl.experimental.enter_loop(vals=[loop_vals]) as loop_builder:
+            i = loop_builder.get_loop_indices()
+
+            mu_wr = loop_builder.initialize_feedback(mu_wr_0)
+            mu_w = loop_builder.initialize_feedback(mu_w_0)
+            x_w = loop_builder.initialize_feedback(x_w_0)
+
+            V_w = compute_wake_relaxation_vel(mesh_dict, wake_mesh_dict, solver_options_dict, mu, sigma, mu_w)
+            print(V_w.shape)
+            # wake_vel = wake_vel.reshape((1, num_wake_pts, 3))
+            V_w = V_w.reshape(pdt.shape)
+            x_w_new = x_w + pdt*V_w 
+            wake_mesh_dict['wake_mesh'] = x_w_new
+            # updating the original x_w because we want the deltas to be applied to the original flat wake
+            wake_mesh_dict = update_wake_mesh_params(mesh_dict, wake_mesh_dict)
+
+            RHS_w = compute_wake_relaxation_influence(mesh_dict, wake_mesh_dict, mu_w)
+
+            RHS_wr = RHS - RHS_w
+            # NOTE: REPLACE WITH LOOPING LIKE BEFORE
+            mu_wr_new = csdl.solve_linear(AIC_mu_orig[0,:], RHS_wr[0,:])
+            mu_wr_new = mu_wr_new.reshape((1, mu_wr_new.shape[0]))
+            mu_w_new_TE = mu_wr_new[:,upper_TE_cells] - mu_wr_new[:,lower_TE_cells]
+
+            mu_w_grid = mu_w_new_TE.expand((mu_w_new_TE.shape[0],) + wake_connectivity.shape[:-1], 'ij->iaj')
+            mu_w_vec_new = mu_w_grid.reshape((mu_w.shape[0], np.prod(wake_connectivity.shape[:-1])))
+
+            loop_builder.finalize_feedback(mu_wr, mu_wr_new)
+            loop_builder.finalize_feedback(mu_w, mu_w_vec_new)
+            loop_builder.finalize_feedback(x_w, x_w_new)
+
+        last_mu = loop_builder.add_output(mu_wr_new)
+        last_mu_w = loop_builder.add_output(mu_w_vec_new)
+        last_x_w = loop_builder.add_output(x_w_new)
+
+        V_w_last = loop_builder.add_output(V_w)
+
+        loop_builder.finalize()
+
+        mu = last_mu
+        mu_w_vec = last_mu_w
+        
+        # updating wake mesh dict with final wake positions
+        wake_mesh_dict['wake_mesh'] = last_x_w
+        wake_mesh_dict = update_wake_mesh_params(mesh_dict, wake_mesh_dict)
+
+
+        wake_mesh_dict['V_w_relax'] = V_w_last
+
+
+
+
+
+
+
     # return mu, sigma, wake_mesh_dict, AIC_mu, AIC_sigma, AIC_mu_orig
-    return mu, sigma, wake_mesh_dict, AIC_mu, AIC_sigma, RHS, AIC_mu_orig
+    return mu, sigma, mu_w_vec, wake_mesh_dict, AIC_mu, AIC_sigma, RHS, AIC_mu_orig
 
 def AIC_computation(mesh_dict, wake_mesh_dict, num_nodes, num_tot_panels, surface_names):
     AIC_sigma = csdl.Variable(shape=(num_nodes, num_tot_panels, num_tot_panels), value=0.)
@@ -1594,6 +1707,16 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
         AIC_mu_wake = AIC_mu_wake.set(csdl.slice[:,start_i:stop_i,:], wake_doublet_influence)
 
         start_i += num_cells_i
+    wake_conn = wake_mesh_dict['wake_connectivity']
+    nws, nwTE = wake_conn.shape[1], wake_conn.shape[0]
+    AIC_mu_wake_reshape = AIC_mu_wake.reshape(
+        # (num_nodes, num_tot_panels, nws, nwTE) # WRONG
+        (num_nodes, num_tot_panels, nwTE, nws)
+    )
+    # print(nws, nwTE)
+    # print(AIC_mu_wake.shape)
+    # print(AIC_mu_wake_reshape.shape)
+    # exit()
 
     # ==== USING STACK VIA LOOP BUILDER ====
     nn_loop_vals = [np.arange(0, num_nodes, dtype=int).tolist()]
@@ -1603,8 +1726,12 @@ def unstructured_AIC_computation_UW_looping_mixed(mesh_dict, wake_mesh_dict, num
         n = nn_loop_builder.get_loop_indices()
         with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
             i = loop_builder.get_loop_indices()
-            AIC_KC_lower_nn = -AIC_mu_wake[n,:,i]
-            AIC_KC_upper_nn = AIC_mu_wake[n,:,i]
+            # AIC_KC_lower_nn = -AIC_mu_wake[n,:,i]
+            # AIC_KC_upper_nn = AIC_mu_wake[n,:,i]
+            # AIC_KC_lower_nn = -csdl.sum(AIC_mu_wake_reshape[n,:,i,:], axes=(1,)) # WRONG
+            # AIC_KC_upper_nn = csdl.sum(AIC_mu_wake_reshape[n,:,i,:], axes=(1,)) # WRONG
+            AIC_KC_lower_nn = -csdl.sum(AIC_mu_wake_reshape[n,:,:,i], axes=(1,))
+            AIC_KC_upper_nn = csdl.sum(AIC_mu_wake_reshape[n,:,:,i], axes=(1,))
             # print(AIC_KC_lower_nn.shape)
         AIC_KC_lower = loop_builder.add_stack(AIC_KC_lower_nn)
         AIC_KC_upper = loop_builder.add_stack(AIC_KC_upper_nn)
@@ -1798,13 +1925,14 @@ def compute_aic_batched(coll_point, normal_vec_eval, panel_center, panel_corners
 
         normal_vec_eval_exp = csdl.expand(normal_vec_eval, expanded_shape_proj, 'ijk->ijak')
         normal_vec_eval_exp_vec = normal_vec_eval_exp.reshape(vectorized_shape_proj)
-        print(AIC_vel_vec.shape)
-        print(normal_vec_eval_exp_vec.shape)
+        # print(AIC_vel_vec.shape)
+        # print(normal_vec_eval_exp_vec.shape)
 
         AIC_vec = csdl.sum(normal_vec_eval_exp_vec*AIC_vel_vec, axes=(2,))
-        print(AIC_vec.shape)
+        # print(AIC_vec.shape)
         # exit()
-
+    # print(BC)
+    # print(mode)
     return AIC_vec
 
 def compute_batched_aic_POD(mesh_dict, wake_mesh_dict, sigma, batch_size, ROM):

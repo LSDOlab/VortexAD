@@ -2,7 +2,10 @@ import numpy as np
 import csdl_alpha as csdl
 
 from VortexAD.core.vlm.steady_vlm_solver import steady_vlm_solver
-from VortexAD.core.vlm.unsteady_vlm_solver import unsteady_vlm_solver
+try:
+    from VortexAD.core.vlm.unsteady_vlm_solver import unsteady_vlm_solver
+except:
+    pass
 
 from VortexAD.utils.plotting.plot_vlm import plot_wireframe
 

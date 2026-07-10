@@ -301,7 +301,7 @@ def compute_bd_vec_induced_vel(mesh_dict, vectorized_mesh_dict, solver_options_d
     num_wake_panels = wake_panel_corners.shape[1]
     batch_size_wake = batch_size
     if batch_size is None:
-        batch_size_wake = num_wake_panels
+        batch_size_wake = num_body_panels
 
     AIC_batch_func = csdl.experimental.batch_function(
         batched_induced_vel,
@@ -370,13 +370,17 @@ def batched_induced_vel(eval_pt, panel_corners, gamma, vc=1.e-6):
     )
     AIC_vel_vec_list.append(asdf)
     AIC_vel_vec = sum(AIC_vel_vec_list)[0,:]
+    # print(AIC_vel_vec.shape)
+    AIC_vel = AIC_vel_vec.reshape((num_eval_pts, num_induced_pts, 3))
+    # exit()
 
-    ind_vel = csdl.Variable(value=np.zeros((num_eval_pts, 3)))
-    for i in range(3):
-        ind_vel = ind_vel.set(
-            csdl.slice[:,i],
-            csdl.sum(AIC_vel_vec[:,i]*gamma)
-        )
+    # ind_vel = csdl.Variable(value=np.zeros((num_eval_pts, 3)))
+    # for i in range(3):
+    #     ind_vel = ind_vel.set(
+    #         csdl.slice[:,i],
+    #         csdl.sum(AIC_vel_vec[:,i]*gamma)
+    #     )
+    ind_vel = csdl.einsum(AIC_vel, gamma, action='ijk,j->ik')
 
     return ind_vel
 

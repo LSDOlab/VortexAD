@@ -123,12 +123,14 @@ def induced_vel_batched(coll_point, panel_corners, gamma, vc):
     )
     AIC_vel_vec_list.append(asdf)
     AIC_vel_vec = sum(AIC_vel_vec_list)[0,:]
+    AIC_vel = AIC_vel_vec.reshape((num_eval_pts, num_induced_pts, 3))
 
-    ind_vel = csdl.Variable(value=np.zeros((num_eval_pts, 3)))
-    for i in range(3):
-        ind_vel = ind_vel.set(
-            csdl.slice[:,i],
-            csdl.sum(AIC_vel_vec[:,i]*gamma)
-        )
+    # ind_vel = csdl.Variable(value=np.zeros((num_eval_pts, 3)))
+    # for i in range(3):
+    #     ind_vel = ind_vel.set(
+    #         csdl.slice[:,i],
+    #         csdl.sum(AIC_vel_vec[:,i]*gamma)
+    #     )
+    ind_vel = csdl.einsum(AIC_vel, gamma, action='ijk,j->ik')
 
     return ind_vel

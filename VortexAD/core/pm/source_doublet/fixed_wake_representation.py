@@ -1,7 +1,7 @@
 import numpy as np
 import csdl_alpha as csdl
 
-def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., mesh_mode='structured', constant_geometry=False):
+def fixed_wake_representation(mesh_dict, num_nodes, solver_options_dict, mesh_mode='structured', constant_geometry=False):
     # wake propagation dt: time elapsed to propagate wake back (dx = V_inf*dt)
     if mesh_mode == 'structured':
         surface_names = list(mesh_dict.keys())
@@ -108,9 +108,16 @@ def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., me
         if constant_geometry:
             num_nodes = 1
 
+        wake_relaxation = solver_options_dict['wake_relaxation']
+        nwpcl = solver_options_dict['nwpcl']
+        MAC = solver_options_dict['ref_chord']
+
         ns = len(TE_node_indices)
         num_TE_edges = len(TE_edges)
         nc_w = 2
+        if wake_relaxation:
+            num_wake_planes = solver_options_dict['num_wake_planes']
+            nc_w = num_wake_planes + 1
         TE = mesh[:,list(TE_node_indices),:]
         
         if constant_geometry: # propagating back at 0 aoa essentially
@@ -118,16 +125,28 @@ def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., me
             # wake_disp = np.zeros(TE.shape)
             # wake_disp[:,:,0] = 500
 
-            TE_vel_mag = csdl.norm(TE_vel, axes=(1,))
-            TE_vel_sign = TE_vel[:,0]/(TE_vel[:,0]**2)**0.5 # sign in x direction
-            TE_vel_adj = TE_vel_mag*TE_vel_sign
+            # TE_vel_mag = csdl.norm(TE_vel, axes=(1,))
+            # TE_vel_sign = TE_vel[:,0]/(TE_vel[:,0]**2)**0.5 # sign in x direction
+            # TE_vel_adj = TE_vel_mag*TE_vel_sign
+
             wake_disp = csdl.Variable(value=np.zeros(TE.shape))
-            wake_disp = wake_disp.set(csdl.slice[0,:,0], value=100*TE_vel_adj)
+            # wake_disp = wake_disp.set(csdl.slice[0,:,0], value=100*TE_vel_adj)
+            wake_disp = wake_disp.set(csdl.slice[0,:,0], value=nwpcl*MAC)
             
             wake_end = TE + wake_disp
         else: # account for aoa in wake
             TE_vel = nodal_vel[:,list(TE_node_indices),:]
-            wake_end = TE + TE_vel*wake_propagation_dt
+            TE_vel_norm = csdl.norm(TE_vel, axes=(2,))
+            wake_propagation_dt = nwpcl*MAC/TE_vel_norm
+            print(wake_propagation_dt.shape)
+            print(TE_vel.shape)
+            wake_prop_dt_exp = wake_propagation_dt.expand((num_nodes, ns, 2), 'ij->ija')
+            wake_disp = csdl.Variable(value=np.zeros(TE.shape))
+            wake_disp = wake_disp.set(csdl.slice[:,:,0::2], TE_vel[:,:,0::2]*wake_prop_dt_exp)
+            # wake_propagation_dt = 100
+            # wake_end = TE + TE_vel*wake_propagation_dt
+
+            wake_end = TE + wake_disp
 
         # creating unstructured wake mesh using TE points
         TE_node_ind_zeroed = list(np.arange(ns)) # corresponds to indices in TE and TE_vel
@@ -140,19 +159,32 @@ def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., me
                 new_edge.append(ind)
 
             TE_edges_zeroed.append(tuple(new_edge))
+        
+        # wake_connectivity = np.array([[
+        #     edge[0],
+        #     edge[0]+ns,
+        #     edge[1]+ns,
+        #     edge[1]
+        # ] for edge in TE_edges_zeroed])
 
-        wake_connectivity = np.array([[
-            edge[0],
-            edge[0]+ns,
-            edge[1]+ns,
-            edge[1]
-        ] for edge in TE_edges_zeroed])
+        wake_connectivity = np.array([[[
+            edge[0]+i*ns,
+            edge[0]+(i+1)*ns,
+            edge[1]+(i+1)*ns,
+            edge[1]+i*ns,
+        ] for edge in TE_edges_zeroed] for i in range(nc_w-1)])
+        wake_mesh_dict['wake_connectivity'] = wake_connectivity
 
         wake_mesh = csdl.Variable(value=np.zeros((num_nodes, ns*nc_w, 3)))
         wake_mesh = wake_mesh.set(csdl.slice[:,:ns,:], value=TE)
-        wake_mesh = wake_mesh.set(csdl.slice[:,ns:,:], value=wake_end)
+        if wake_relaxation:
+            for i in range(num_wake_planes):
+                wake_plane_delta = (wake_end-TE)/num_wake_planes*(i+1)
+                wake_mesh = wake_mesh.set(csdl.slice[:,ns*(i+1):ns*(i+2),:], value=TE+wake_plane_delta)
+        else:
+            wake_mesh = wake_mesh.set(csdl.slice[:,ns:,:], value=wake_end)
 
-        wake_mesh_dict['mesh'] = wake_mesh
+        wake_mesh_dict['wake_mesh'] = wake_mesh
         wake_mesh_dict['nc'], wake_mesh_dict['ns'] = nc_w, ns
         # wake_mesh_dict['num_panels'] = (nc_w-1)*(ns-1)
         wake_mesh_dict['num_panels'] = (nc_w-1)*num_TE_edges
@@ -163,10 +195,10 @@ def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., me
         # p3 = wake_mesh[:,list(wake_connectivity[:,2]),:]
         # p4 = wake_mesh[:,list(wake_connectivity[:,3]),:]
 
-        p1_ind = [int(x) for x in list(wake_connectivity[:,0])]
-        p2_ind = [int(x) for x in list(wake_connectivity[:,1])]
-        p3_ind = [int(x) for x in list(wake_connectivity[:,2])]
-        p4_ind = [int(x) for x in list(wake_connectivity[:,3])]
+        p1_ind = [int(x) for x in list(wake_connectivity[:,:,0].flatten())]
+        p2_ind = [int(x) for x in list(wake_connectivity[:,:,1].flatten())]
+        p3_ind = [int(x) for x in list(wake_connectivity[:,:,2].flatten())]
+        p4_ind = [int(x) for x in list(wake_connectivity[:,:,3].flatten())]
 
         nn_loop_vals = [np.arange(num_nodes).tolist()]
         loop_vals = [p1_ind, p2_ind, p3_ind, p4_ind]
@@ -244,5 +276,7 @@ def fixed_wake_representation(mesh_dict, num_nodes, wake_propagation_dt=100., me
         wake_mesh_dict['S'] = S
         wake_mesh_dict['SL'] = SL
         wake_mesh_dict['SM'] = SM
+
+        wake_mesh_dict['wake_core_radius'] = 1.e-6
 
     return wake_mesh_dict

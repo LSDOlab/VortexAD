@@ -6,7 +6,10 @@ from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency
 from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
 
 from VortexAD.core.pm.steady_panel_solver import steady_panel_solver
-from VortexAD.core.pm.unsteady_panel_solver import unsteady_panel_solver
+try:
+    from VortexAD.core.pm.unsteady_panel_solver import unsteady_panel_solver
+except:
+    pass
 import os
 
 current_directory = os.getcwd()
@@ -14,14 +17,15 @@ default_mesh_path = current_directory + '/geometry/sample_meshes/naca0012_LE_TE_
 
 default_input_dict = {
     # flow properties
-    'V_inf': None, # m/s
-    'Mach': None,
-    'sos': 340.3, # m/s, 
-    'alpha': None, # user can provide grid of velocities as well
-    'rho': 1.225, # kg/m^3
-    'nu': 1.46e-5,
-    'compressibility': False, # PG correction
-    'Cp cutoff': -5., # minimum Cp (numerical reasons)
+    'V_inf': None,                          # m/s
+    'Mach': None,                           # Unitless 
+    'sos': 340.3,                           # m/s, 
+    'alpha': None,                          # user can provide grid of velocities as well
+    'rho': 1.225,                           # density (kg/m^3)
+    'nu': 1.46e-5,                          # kinematic viscosity (m^2/s) 
+    'compressibility': False,               # PG correction
+    'Cp cutoff': -5.,                       # minimum Cp (numerical reasons)
+    'nwpcl': 30,                            # Number of Wake Propagation (reference) Chord Lengths 
 
     # mesh
     'mesh_path': default_mesh_path,
@@ -39,32 +43,40 @@ default_input_dict = {
     'wake_mode': 'fixed',
 
     # partition size for linear system assembly
-    'partition_size': 1, # for full vectorization, set to None
+    'partition_size': 1,                    # for full vectorization, set to None
 
     # GMRES linear system solve
     'iterative': False,
     
     # ROM options
-    'ROM': False, # 'ROM-POD or ROM-Krylov
+    'ROM': False,                           # 'ROM-POD or ROM-Krylov
 
     # reusing AIC (no alpha dependence on wake) --> this only applies to fixed wake
     'reuse_AIC': False,
 
     # others
-    'ref_area': 10., # reference area (l^2, l being the input length unit)
+    'ref_area': 10.,                        # reference area (l^2, l being the input length unit)
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
-    'drag_type': 'pressure', # pressure or Trefftz (not implemented yet)
+    'drag_type': 'pressure',                # pressure or Trefftz (not implemented yet)
+
+    # steady solver wake relaxation parameters
+    'wake_relaxation': False,               # wake relaxation flag
+    'K': 0.5,                               # between 0.5 and 5
+    'num_wake_planes': 5,                   # number of wake planes 
+    'num_wake_iterations': 3,               # number of wake planes 
+
 
     # unsteady solver
-    'dt': 0.1, # time step (s)
-    'nt': 10, # number of time steps
-    'store_state_history': True, # flag to store state history
-    'core_radius': 1.e-3, # vortex core radius
-    'vc_parameters': [1.25643, 0, 2.5], # alpha, a1, bqs from core model
+    'dt': 0.1,                              # time step (s)
+    'nt': 10,                               # number of time steps
+    'store_state_history': True,            # flag to store state history
+    'core_radius': 1.e-3,                   # vortex core radius
+    'vc_parameters': [1.25643, 0, 2.5],     # alpha, a1, bqs from core model
     'free_wake': False,
     'dissipation': False,
     'integration_method': 'ForwardEuler'
+
 }
 
 output_options_dict = {
@@ -447,12 +459,23 @@ class PanelMethod(object):
         self.TE_nodes_zeroed = list(set(TE_nodes_zeroed_dup))
 
         if self.solver_mode == 'steady':
-            self.wake_connectivity = np.array([[
-                edge[0],
-                edge[0]+ns,
-                edge[1]+ns,
-                edge[1]
-            ] for edge in TE_edges_zeroed])
+            # self.wake_connectivity = np.array([[
+            #     edge[0],
+            #     edge[0]+ns,
+            #     edge[1]+ns,
+            #     edge[1]
+            # ] for edge in TE_edges_zeroed])
+            nc_w = 2
+            wake_relaxation = self.options_dict['wake_relaxation']
+            if wake_relaxation:
+                num_wake_planes = self.options_dict['num_wake_planes']
+                nc_w = num_wake_planes + 1
+            self.wake_connectivity = np.array([[[
+                edge[0]+i*ns,
+                edge[0]+(i+1)*ns,
+                edge[1]+(i+1)*ns,
+                edge[1]+i*ns,
+            ] for edge in TE_edges_zeroed] for i in range(nc_w-1)])
 
         elif self.solver_mode == 'unsteady':
             nt = self.options_dict['nt']
@@ -463,8 +486,8 @@ class PanelMethod(object):
                 edge[1] + i*ns,
             ] for edge in TE_edges_zeroed] for i in range(nt-1)])
         
-            wake_cell_adjacency = find_wake_cell_adjacency(self.wake_connectivity)
-            self.edges2cells_w = wake_cell_adjacency[0]
+        wake_cell_adjacency = find_wake_cell_adjacency(self.wake_connectivity)
+        self.edges2cells_w = wake_cell_adjacency[0]
 
     # these functions are when we want to use the functions externally
     # this helps when doing optimization or using FFD to move a mesh
@@ -499,7 +522,7 @@ class PanelMethod(object):
         self.generate_wake_connectivity()
 
     
-    def plot(self, data_to_plot, bounds=None, cmap='jet', camera=False, screenshot=False):
+    def plot(self, data_to_plot, bounds=None, wake_plot_params=False, cmap='jet', camera=False, screenshot=False):
         '''
         Plotting function for scalar field variables.
         '''
@@ -510,7 +533,8 @@ class PanelMethod(object):
         combined_cells = []
         for cell_type in cell_types:
             combined_cells += self.cells[cell_type].tolist()
-        plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=combined_cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap, camera=camera, screenshot=screenshot)
+        plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=combined_cells, wake_plot_params=wake_plot_params, bounds=bounds, 
+                                   interactive=True, top_view=False, cmap=cmap, camera=camera, screenshot=screenshot)
 
     def plot_unsteady(self, mesh, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='panel_method'):
         from VortexAD.utils.plotting.plot_unstructured import plot_wireframe

@@ -26,6 +26,7 @@ vlm = VortexLatticeMethod(
     input_dict
 )
 vlm_outputs = ['surface_lift', 'surface_CL', 'surface_CDi', 'gamma', 'wake_vortex_mesh', 'net_gamma']
+vlm_outputs.append('surface_panel_forces')
 vlm.declare_outputs(vlm_outputs)
 
 outputs = vlm.evaluate()
@@ -36,9 +37,11 @@ gamma = outputs['gamma']
 wvm = outputs['wake_vortex_mesh']
 net_gamma = outputs['net_gamma']
 
+panel_forces = outputs['surface_panel_forces'][0]
+
 # csdl-jax stuff
 inputs = [pitch]
-outputs = [L, CL, CDi, gamma, wvm, net_gamma]
+outputs = [L, CL, CDi, gamma, wvm, net_gamma, panel_forces]
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,

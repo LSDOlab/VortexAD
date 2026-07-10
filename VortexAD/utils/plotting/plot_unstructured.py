@@ -5,7 +5,8 @@ from vedo import *
 import matplotlib.pyplot as plt
 plt.rcParams.update(plt.rcParamsDefault)
 
-def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds=None, on='cells', surface_color='white', cmap='jet', interactive=False, top_view=False, front_top_view=False, camera=False, screenshot=False):
+def plot_pressure_distribution(mesh, Cp, connectivity, wake_plot_params=False, panel_center=None, bounds=None, on='cells', surface_color='white', 
+                               cmap='jet', interactive=False, top_view=False, front_top_view=False, camera=False, screenshot=False):
     vedo.settings.default_backend = 'vtk'
     axs = Axes(
         xrange=(0,3),
@@ -40,6 +41,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     vps.add_scalarbar("Cp", font_size=40, size=(250,900), pos=(0.025, 0.05), horizontal=False)
     # vps.add_scalarbar("Cp", font_size=20, size=(250,900), horizontal=False)
     vp += vps
+
     # vp += __doc__
     # nl = NormalLines(vps, on=on, scale=1.).linecolor('black')
     # vp += nl
@@ -48,6 +50,65 @@ def plot_pressure_distribution(mesh, Cp, connectivity, panel_center=None, bounds
     # else:
     #     arrows = Arrows(mesh, Cp+mesh, c='red')
     # vp += arrows
+
+    if wake_plot_params:
+        wake_mesh = wake_plot_params['wake_mesh'] 
+        mu_wake = wake_plot_params['mu_wake']
+        wake_conn = wake_plot_params['wake_connectivity']
+        wake_form = wake_plot_params['wake_form'] # 'grid' or 'lines'
+        TE_indices_zeroed = wake_plot_params['TE_indices_zeroed']
+        wake_edges2cells = wake_plot_params['wake_edges2cells']
+        color_wake = wake_plot_params['plot_wake_color']
+        # wake_mesh = wake_mesh_params[3]
+        # wake_mesh = wake_mesh_params[4]
+        nsp, nTp = wake_conn.shape[0], wake_conn.shape[1]
+        # wake_points = wake_mesh.reshape(nsp+1, num_TE_pts)
+        wake_points = wake_mesh # already vectorized
+
+        ns = np.max(wake_conn[0,:,0::3])+1 # spanwise nodes
+        nc = wake_conn.shape[0] + 1
+
+
+        if wake_form == 'grid':
+            wake_conn_iter = wake_conn[:,:,:].reshape((-1, 4)) # OLD METHOD (don't need to replace)
+            # vps = Mesh([np.reshape(wake_points, (-1, 3)), wake_conn_iter], c='gray', alpha=1)
+            vps = Mesh([np.reshape(wake_points, (-1, 3)), wake_conn_iter], alpha=1).linecolor('black')
+            # mu_wake_color = np.reshape(wake_data[i,:(i)*(nTp)], (-1,1)) # OLD METHOD
+            if color_wake:
+                mu_wake_color = np.reshape(mu_wake, (-1,1)) # NEW METHOD
+                # vps.cmap(cmap, mu_wake_color, on='cells', vmin=min_mu, vmax=max_mu)
+                vps.cmap(cmap, mu_wake_color, on='cells', vmin=Cp_min, vmax=Cp_max)
+        elif wake_form == 'lines':
+            wpig = wake_points.reshape(nc, ns, 3)
+
+            line_pts = []
+            line_colors = []
+            line_edges = []
+            for j in range(nsp): # NOTE: CHECK
+                line_pts.extend([[wpig[j,ind,:], wpig[j+1,ind,:]] for ind in TE_indices_zeroed])
+
+                # line_edges.extend([(ind+(nsp-1+j)*ns, ind+(nsp+j)*ns) for ind in TE_indices_zeroed]) # NEW METHOD
+                line_edges.extend([(ind+(j)*ns, ind+(j+1)*ns) for ind in TE_indices_zeroed]) # NEW METHOD
+                # the new method gets the wake elements closest to the TE to furthest away (the role of +j)
+                # starting from some number of timesteps back from the furthest wake element (the role of -i)
+            edge_adj_cells = []
+            for edge in line_edges:
+                if edge in wake_edges2cells.keys():
+                    adj_cells = wake_edges2cells[edge]
+                elif edge[::-1] in wake_edges2cells.keys():
+                    adj_cells = wake_edges2cells[edge[::-1]]
+                edge_adj_cells.append(adj_cells)
+                # edge_color = np.average(wake_data[i,])
+
+            vps = Lines(line_pts, lw=3, c='black')
+            if color_wake:
+                line_colors = [np.average(mu_wake[ind]) for ind in edge_adj_cells]
+
+                # vps.cmap(cmap, line_colors, on='cells', vmin=min_mu, vmax=max_mu)
+                vps.cmap(cmap, line_colors, on='cells', vmin=Cp_min, vmax=Cp_max)
+
+        vp += vps
+
     
     # wake_points = wake_mesh[:,i,:(i+1),:]
     # # mu_w = np.reshape(sim['system_model.wig.wig.wig.operation.prob.' + 'op_' + surface_name+'_mu_w'][i, 0:i, :], (-1,1))
