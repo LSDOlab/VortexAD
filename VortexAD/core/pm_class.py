@@ -58,7 +58,7 @@ default_input_dict = {
     'ref_area': 10.,                        # reference area (l^2, l being the input length unit)
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
-    'drag_type': 'pressure',                # pressure or Trefftz (not implemented yet)
+    'drag_type': 'Trefftz',                # pressure or Trefftz
 
     # steady solver wake relaxation parameters
     'wake_relaxation': False,               # wake relaxation flag

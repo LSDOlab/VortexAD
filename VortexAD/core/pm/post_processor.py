@@ -116,10 +116,10 @@ def post_processor(mesh_dict, mu, sigma, num_nodes, rho=1.225, Cp_cutoff=-100.):
     return output_dict
 
 
-def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility=False, 
-                                rho=1.225, Cp_cutoff=-100., constant_geometry=False, 
-                                ref_point=np.zeros(3), ref_area=10., ref_chord=1.,
-                                sos=340.3):
+def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_nodes, 
+                                compressibility=False, rho=1.225, Cp_cutoff=-100., 
+                                constant_geometry=False, ref_point=np.zeros(3), 
+                                ref_area=10., ref_chord=1., sos=340.3, drag_type='pressure'):
     x_dir_global = np.array([1., 0., 0.])
     z_dir_global = np.array([0., 0., 1.])
     output_dict = {}
@@ -238,6 +238,15 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
         rho_exp_CM = rho
     CM = moment/(0.5*rho_exp_CM*ref_area*Q_inf_exp**2*ref_chord)
 
+    if drag_type == 'Trefftz':
+        from VortexAD.core.pm.trefftz_plane import trefftz_plane_drag
+        Di_Trefftz = trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry)
+        if compressibility:
+            Di_Trefftz = Di_Trefftz/beta[:,0]
+        
+        CDi_Trefftz = Di_Trefftz/(0.5*rho*ref_area*Q_inf**2)
+
+
     # scalar coefficients
     output_dict['CL'] = CL
     output_dict['CDi'] = CDi
@@ -247,6 +256,10 @@ def unstructured_post_processor(mesh_dict, mu, sigma, num_nodes, compressibility
     output_dict['L'] = L
     output_dict['Di'] = Di
     output_dict['M'] = moment
+
+    if drag_type == 'Trefftz':
+        output_dict['Di_Trefftz'] = Di_Trefftz
+        output_dict['CDi_Trefftz'] = CDi_Trefftz
 
     # force + pressure distributions
     output_dict['Cp'] = Cp

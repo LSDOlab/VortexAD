@@ -23,6 +23,8 @@ recorder.start()
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb.stl'
 num_nodes = 6
 pitch = csdl.Variable(value=np.arange(0,num_nodes))
+pitch_val = np.linspace(-5, 5, 11)
+pitch = csdl.Variable(value=pitch_val)
 
 # input dict
 input_dict = {
@@ -32,7 +34,8 @@ input_dict = {
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
     'ref_area': 525., 
     'compressibility': True,
-    'reuse_AIC': True
+    'reuse_AIC': True,
+    'drag_type': 'Trefftz',
 }
 
 # instantiate PanelMethod class
@@ -45,7 +48,10 @@ pm_outputs = [
     'CDi',
     'Cp',
     'L',
-    'Di'
+    'Di',
+
+    'Di_Trefftz',
+    'CDi_Trefftz',
 ]
 panel_method.declare_outputs(pm_outputs)
 
@@ -61,9 +67,13 @@ CP = outputs['Cp']
 L = outputs['L']
 Di = outputs['Di']
 
+Di_T = outputs['Di_Trefftz']
+CDi_T = outputs['CDi_Trefftz']
+
 # csdl-jax stuff
 inputs = [pitch]
 outputs = [CL, CDi, CP, L, Di]
+outputs.extend([Di_T, CDi_T])
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -86,3 +96,11 @@ print('L:', L_val)
 print('Di:', Di_val)
 
 panel_method.plot(CP_val[0,:], bounds=[-3,1])
+
+if False:
+    import matplotlib.pyplot as plt
+    plt.plot(pitch_val, sim[CDi], label='pressure integration')
+    plt.plot(pitch_val, sim[CDi_T], label='Trefftz plane')
+    plt.grid()
+    plt.legend()
+    plt.show()

@@ -63,9 +63,10 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
         output_dict = post_processor(mesh_dict, mu, sigma, num_nodes, rho, Cp_cutoff)
     elif mesh_mode == 'unstructured':
         output_dict = unstructured_post_processor(
-            mesh_dict, mu, sigma, num_nodes, compressibility, 
+            mesh_dict, wake_dict, mu, sigma, mu_wake, num_nodes, compressibility, 
             rho, Cp_cutoff, reuse_AIC, ref_point=moment_ref,
-            ref_area=ref_area, ref_chord=ref_chord, sos=sos
+            ref_area=ref_area, ref_chord=ref_chord, sos=sos,
+            drag_type=drag_type,
         )
 
     output_dict['wake_dict'] = wake_dict

@@ -30,6 +30,7 @@ input_dict = {
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
     'ref_area': 10., 
     'BC': BC,
+    'drag_type': 'Trefftz',
 }
 
 # instantiate PanelMethod class
@@ -41,7 +42,12 @@ pm_outputs = [
     'CL',
     'CDi',
     'Cp',
-    'mu'
+    'mu',
+    'L',
+    'Di',
+
+    'Di_Trefftz',
+    'CDi_Trefftz',
 ]
 panel_method.declare_outputs(pm_outputs)
 
@@ -55,10 +61,16 @@ CL = outputs['CL']
 CDi = outputs['CDi']
 CP = outputs['Cp']
 mu = outputs['mu']
+L = outputs['L']
+Di = outputs['Di']
+
+Di_T = outputs['Di_Trefftz']
+CDi_T = outputs['CDi_Trefftz']
 
 # csdl-jax stuff
 inputs = [pitch]
 outputs = [CL, CDi, CP, mu]
+outputs.extend([L, Di, Di_T, CDi_T])
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
