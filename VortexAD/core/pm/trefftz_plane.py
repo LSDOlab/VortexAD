@@ -88,6 +88,11 @@ def trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant
     # print(TPI.shape)
     # trefftz plane induced drag
     D_Trefftz = rho/2*TPI # no negative sign here because of panel normal orientation
+
+    lower_bound = D_Trefftz * 0.
+    scaler=1e-6
+
+    D_Trefftz = csdl.maximum(D_Trefftz*scaler, lower_bound, rho=1/scaler)/scaler
     return D_Trefftz
 
 def compute_vertical_induced_velocity(eval_pts, mesh_dict, wake_mesh_dict, mu, sigma, mu_w):

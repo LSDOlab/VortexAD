@@ -21,10 +21,15 @@ recorder.start()
 
 # set up input dictionary
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb.stl'
-num_nodes = 6
-pitch = csdl.Variable(value=np.arange(0,num_nodes))
-pitch_val = np.linspace(-5, 5, 11)
-pitch = csdl.Variable(value=pitch_val)
+reuse_AIC = False
+if reuse_AIC:
+    num_nodes = 6
+    pitch = csdl.Variable(value=np.arange(0,num_nodes))
+    # pitch_val = np.linspace(-5, 5, 11)
+    # pitch = csdl.Variable(value=pitch_val)
+else:
+    pitch = csdl.Variable(value=np.array([0.]))
+
 
 # input dict
 input_dict = {
@@ -34,7 +39,7 @@ input_dict = {
     'mesh_path': mesh_file_path, # can alternatively load mesh in with connectivity/TE data
     'ref_area': 525., 
     'compressibility': True,
-    'reuse_AIC': True,
+    'reuse_AIC': reuse_AIC,
     'drag_type': 'Trefftz',
 }
 
@@ -97,10 +102,33 @@ print('Di:', Di_val)
 
 panel_method.plot(CP_val[0,:], bounds=[-3,1])
 
-if False:
-    import matplotlib.pyplot as plt
-    plt.plot(pitch_val, sim[CDi], label='pressure integration')
-    plt.plot(pitch_val, sim[CDi_T], label='Trefftz plane')
-    plt.grid()
-    plt.legend()
-    plt.show()
+
+if not reuse_AIC:
+
+    pitch_array = np.linspace(-5, 5, 11)
+
+    L_array = np.zeros_like(pitch_array)
+    CL_array = np.zeros_like(pitch_array)
+    Di_array = np.zeros_like(pitch_array)
+    CDi_array = np.zeros_like(pitch_array)
+    Di_T_array = np.zeros_like(pitch_array)
+    CDi_T_array = np.zeros_like(pitch_array)
+
+    for i, val in enumerate(pitch_array):
+        sim[pitch] = val
+        asdf = sim.run()
+
+        L_array[i] = sim[L]
+        CL_array[i] = sim[CL]
+        Di_array[i] = sim[Di]
+        CDi_array[i] = sim[CDi]
+        Di_T_array[i] = sim[Di_T]
+        CDi_T_array[i] = sim[CDi_T]
+
+    if True:
+        import matplotlib.pyplot as plt
+        plt.plot(pitch_array, CDi_array, label='pressure integration')
+        plt.plot(pitch_array, CDi_T_array, label='Trefftz plane')
+        plt.grid()
+        plt.legend()
+        plt.show()

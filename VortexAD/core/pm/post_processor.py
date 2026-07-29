@@ -242,7 +242,11 @@ def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_
         from VortexAD.core.pm.trefftz_plane import trefftz_plane_drag
         Di_Trefftz = trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry)
         if compressibility:
-            Di_Trefftz = Di_Trefftz/beta[:,0]
+            if constant_geometry:
+                denom = beta[:,0]
+            else:
+                denom = beta    
+            Di_Trefftz = Di_Trefftz/denom
         
         CDi_Trefftz = Di_Trefftz/(0.5*rho*ref_area*Q_inf**2)
 
