@@ -23,7 +23,7 @@ def trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant
     WE_panel_corners = pc[:,-ns:] # wake end panel corners
 
     upstream_edge_center = (TE_panel_corners[:,:,0] + TE_panel_corners[:,:,3])/2
-    downstream_edge_center = (WE_panel_corners[:,:,0] + WE_panel_corners[:,:,3])/2
+    downstream_edge_center = (WE_panel_corners[:,:,1] + WE_panel_corners[:,:,2])/2
 
     TPFW = 0.75 # trefftz plane location as a fraction of the wake
     # recommended to be 0.5. at 1, it is evaluated at the wake end
@@ -92,7 +92,7 @@ def trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant
     lower_bound = D_Trefftz * 0.
     scaler=1e-6
 
-    D_Trefftz = csdl.maximum(D_Trefftz*scaler, lower_bound, rho=1/scaler)/scaler
+    # D_Trefftz = csdl.maximum(D_Trefftz*scaler, lower_bound, rho=1/scaler)/scaler
     return D_Trefftz
 
 def compute_vertical_induced_velocity(eval_pts, mesh_dict, wake_mesh_dict, mu, sigma, mu_w):
@@ -121,7 +121,7 @@ def compute_vertical_induced_velocity(eval_pts, mesh_dict, wake_mesh_dict, mu, s
         batch_size=batch_size_surf,
         batch_dims=[1]+[None]*10
     )
-    vc_body = 1.e-6
+    vc_body = 1.e-4
     start_j, stop_j = 0, 0
     doublet_ind_vel_list = []
     source_ind_vel_list = []
@@ -186,7 +186,7 @@ def compute_vertical_induced_velocity(eval_pts, mesh_dict, wake_mesh_dict, mu, s
         eval_pts, 
         panel_corners_w,
         mu_w,
-        1.e-6
+        1.e-4
     )
 
     ind_vel = doublet_ind_vel + source_ind_vel + wake_ind_vel

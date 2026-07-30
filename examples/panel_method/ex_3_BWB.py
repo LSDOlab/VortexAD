@@ -14,13 +14,60 @@ import csdl_alpha as csdl
 
 from VortexAD import PanelMethod
 from VortexAD import SAMPLE_GEOMETRY_PATH
+from VortexAD import find_cell_adjacency, TE_detection
+import meshio
+
+
+manual_mesh_upload = True
+reuse_AIC = False
 
 # instantiate recorder to assemble the graph
 recorder = csdl.Recorder(inline=False)
 recorder.start()
 
 # set up input dictionary
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/bwb.stl'
+file_name = 'bwb.stl'
+mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/' + file_name
+
+if manual_mesh_upload:
+    mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/' + file_name 
+    mesh = meshio.read(
+        mesh_file_path,
+    )
+    
+    points_orig = mesh.points
+    cells = mesh.cells
+    cells_dict = mesh.cells_dict
+    
+    cell_adjacency_data = find_cell_adjacency(points=points_orig, cells=cells_dict)
+    
+    points_orig = cell_adjacency_data[0] 
+    cells_dict = cell_adjacency_data[1] 
+    cell_adjacency = cell_adjacency_data[2] 
+    edges2cells = cell_adjacency_data[3]
+    points2cells = cell_adjacency_data[4]
+    
+    TE_properties = TE_detection(
+        points=points_orig,
+        cells=cells_dict,
+        edges2cells=edges2cells,
+        points2cells=points2cells,
+        threshold_theta=125.
+    )
+    
+    
+    default_panel_mesh = csdl.Variable(value=points_orig)
+    
+    x_scaler = csdl.Variable(value=np.array([1.]))
+    y_scaler = csdl.Variable(value=np.array([1.]))
+    z_scaler = csdl.Variable(value=np.array([1.]))
+    
+    panel_mesh = csdl.Variable(value=points_orig)
+    panel_mesh = panel_mesh.set(csdl.slice[:,0], default_panel_mesh[:,0]*x_scaler)
+    panel_mesh = panel_mesh.set(csdl.slice[:,1], default_panel_mesh[:,1]*y_scaler)
+    panel_mesh = panel_mesh.set(csdl.slice[:,2], default_panel_mesh[:,2]*z_scaler)
+
+
 reuse_AIC = False
 if reuse_AIC:
     num_nodes = 6
@@ -60,7 +107,15 @@ pm_outputs = [
 ]
 panel_method.declare_outputs(pm_outputs)
 
-panel_method.setup_grid_properties(threshold_angle=125, plot=True) # optional for debugging
+if manual_mesh_upload:
+    panel_method.insert_grid_data(
+        # mesh=panel_mesh[0,:],
+        mesh=panel_mesh,
+        cell_adjacency_data=cell_adjacency_data,
+        TE_properties=TE_properties
+    )
+else:
+    panel_method.setup_grid_properties(threshold_angle=125, plot=True) # optional for debugging
 
 # run the panel method
 outputs = panel_method.evaluate()
@@ -76,8 +131,9 @@ Di_T = outputs['Di_Trefftz']
 CDi_T = outputs['CDi_Trefftz']
 
 # csdl-jax stuff
-inputs = [pitch]
-outputs = [CL, CDi, CP, L, Di]
+inputs = [pitch, x_scaler, y_scaler, z_scaler]
+# outputs = [CL, CDi, CP, L, Di]
+outputs = [CL, CDi, L, Di]
 outputs.extend([Di_T, CDi_T])
 
 sim = csdl.experimental.JaxSimulator(
@@ -90,18 +146,32 @@ sim.run()
 
 CL_val = sim[CL]
 CDi_val = sim[CDi]
-CP_val = sim[CP]
-
 L_val = sim[L]
 Di_val = sim[Di]
+
+# CP_val = sim[CP]
+# panel_method.plot(CP_val[0,:], bounds=[-3,1])
 
 print('CL:', CL_val)
 print('CDi:', CDi_val)
 print('L:', L_val)
 print('Di:', Di_val)
 
-panel_method.plot(CP_val[0,:], bounds=[-3,1])
 
+
+x_scaler_vals = np.array([0.8, 0.9, 0.95, 1.0, 1.1, 1.2])
+for val in x_scaler_vals:
+    sim[x_scaler] = val
+    asdf = sim.run()
+    print('========')
+    print(f'L: {sim[L]}')
+    print(f'CL: {sim[CL]}')
+    print(f'Di: {sim[Di]}')
+    print(f'CDi: {sim[CDi]}')
+    print(f'Di_T: {sim[Di_T]}')
+    print(f'CDi_T: {sim[CDi_T]}')
+
+exit()
 
 if not reuse_AIC:
 
