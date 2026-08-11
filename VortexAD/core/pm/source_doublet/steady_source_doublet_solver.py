@@ -22,6 +22,7 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
     ref_chord       = solver_options_dict['ref_chord']
     moment_ref      = solver_options_dict['moment_reference']
     drag_type       = solver_options_dict['drag_type']
+    neppwp          = solver_options_dict['neppwp']
 
     if isinstance(rho, float):
         rho = csdl.Variable(value=np.array([rho]))
@@ -66,7 +67,7 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
             mesh_dict, wake_dict, mu, sigma, mu_wake, num_nodes, compressibility, 
             rho, Cp_cutoff, reuse_AIC, ref_point=moment_ref,
             ref_area=ref_area, ref_chord=ref_chord, sos=sos,
-            drag_type=drag_type,
+            drag_type=drag_type, neppwp=neppwp
         )
 
     output_dict['wake_dict'] = wake_dict

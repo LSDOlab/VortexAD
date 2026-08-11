@@ -1,7 +1,7 @@
 import numpy as np
 import csdl_alpha as csdl
 
-def trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry):
+def trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry, neppwp):
     num_nodes = mu.shape[0]
     num_geom_nodes = num_nodes
     if constant_geometry:
@@ -83,6 +83,133 @@ def trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant
     # print(wake_panel_width.shape)
     # trefftz plane integral
     TPI_integrand = dPhi_span*w*wake_panel_width
+    # print(TPI_integrand.shape)
+    TPI = csdl.sum(TPI_integrand, axes=(1,))
+    # print(TPI.shape)
+    # trefftz plane induced drag
+    D_Trefftz = rho/2*TPI # no negative sign here because of panel normal orientation
+
+    lower_bound = D_Trefftz * 0.
+    scaler=1e-6
+
+    # D_Trefftz = csdl.maximum(D_Trefftz*scaler, lower_bound, rho=1/scaler)/scaler
+    return D_Trefftz
+
+def trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry, neppwp):
+    num_nodes = mu.shape[0]
+    num_geom_nodes = num_nodes
+    if constant_geometry:
+        num_geom_nodes = 1
+    TE_node_indices = mesh_dict['TE_node_indices']
+    TE_edges = mesh_dict['TE_edges']
+    ns = len(TE_node_indices)
+    wake_mesh = wake_mesh_dict['wake_mesh']
+    TE = wake_mesh[:,:ns,:]
+    wake_end = wake_mesh[:,-ns:,:]
+    wake_connectivity = wake_mesh_dict['wake_connectivity']
+
+    pc = wake_mesh_dict['panel_corners']
+
+    panel_widths = (pc[:,:,2,1] + pc[:,:,3,1] - pc[:,:,0,1] - pc[:,:,1,1])/4 
+    panel_widths = (panel_widths**2)**0.5
+
+    TE_panel_corners = pc[:,:ns] # trailing-edge-adjacent panel corners (includes the TE)
+    WE_panel_corners = pc[:,-ns:] # wake end panel corners
+
+    upstream_edge_center = (TE_panel_corners[:,:,0] + TE_panel_corners[:,:,3])/2
+    downstream_edge_center = (WE_panel_corners[:,:,1] + WE_panel_corners[:,:,2])/2
+
+    TPFW = 0.75 # trefftz plane location as a fraction of the wake
+    # recommended to be 0.5. at 1, it is evaluated at the wake end
+    # eval_pts = wake_end*TPFW + TE*(1-TPFW) # should have num_nodes embedded into it
+    eval_pts = downstream_edge_center*TPFW + upstream_edge_center*(1-TPFW)
+
+    upstream_edge_nodes = csdl.Variable(value=np.zeros((num_nodes, ns, 3))) # num_nodes, num_TE_edges, 3
+    upstream_edge_nodes = upstream_edge_nodes.set(csdl.slice[:,:-1], TE_panel_corners[:,:,0,:])
+    upstream_edge_nodes = upstream_edge_nodes.set(csdl.slice[:,-1], TE_panel_corners[:,-1,3,:])
+
+    downstream_edge_nodes = csdl.Variable(value=np.zeros((num_nodes, ns, 3)))
+    downstream_edge_nodes = downstream_edge_nodes.set(csdl.slice[:,:-1], WE_panel_corners[:,:,1,:])
+    downstream_edge_nodes = downstream_edge_nodes.set(csdl.slice[:,-1], WE_panel_corners[:,-1,2,:])
+
+    if neppwp == 1:
+        eval_pts = downstream_edge_nodes*TPFW + upstream_edge_nodes*(1-TPFW)
+    else:
+        nep = (ns-1)*neppwp + 1
+        eval_pts_edges = downstream_edge_nodes*TPFW + upstream_edge_nodes*(1-TPFW)
+        eval_pts = csdl.Variable(value=np.zeros((num_nodes, nep, 3)))
+        eval_pts = eval_pts.set(csdl.slice[:,::neppwp,:], eval_pts_edges)
+        for i in csdl.frange(neppwp):
+            asdf = eval_pts_edges[:,:-1]*(neppwp-i)/neppwp + eval_pts_edges[:,1:]*i/neppwp
+            end_ind = (ns-1-1)*neppwp + 1 + i
+            eval_pts = eval_pts.set(
+                csdl.slice[:,i:end_ind:neppwp,:],
+                asdf
+            )
+
+    # computing induced velocities
+    if constant_geometry:
+        nn_ind_array = np.arange(num_nodes).tolist()
+        with csdl.experimental.enter_loop(vals=[nn_ind_array]) as loop_builder:
+            n = loop_builder.get_loop_indices()
+    
+            w_loop = compute_vertical_induced_velocity(
+                eval_pts,
+                mesh_dict,
+                wake_mesh_dict,
+                mu[n,:].reshape((1,) + mu.shape[1:]),
+                sigma[n,:].reshape((1,) + sigma.shape[1:]),
+                mu_w[n,:].reshape((1,) + mu_w.shape[1:])
+            )
+            w_ind = w_loop[0,:]
+        w = loop_builder.add_stack(w_ind)
+        loop_builder.finalize()
+    else:
+        w = compute_vertical_induced_velocity(
+            eval_pts,
+            mesh_dict,
+            wake_mesh_dict,
+            mu,
+            sigma,
+            mu_w
+        )
+
+    # computing potential jump across span
+    num_TE_edges = len(TE_edges)
+    mu_w_shape = mu_w.shape
+    num_wake_elements = mu_w_shape[1]
+    if num_wake_elements > num_TE_edges: # means there is more than 1 wake row
+        dPhi_span = mu_w[:,:num_TE_edges] # all the same, take the first row
+    else:
+        dPhi_span = mu_w
+
+    # adjusting for more than 1 wake rows
+    wake_rows = wake_connectivity.shape[0]
+    if wake_rows > 1: # NOTE: CHECK TO MAKE SURE THE SHAPES HERE ARE CORRECT RELATIVE TO WAKE CONNECTIVITY
+        panel_widths = panel_widths.reshape((num_nodes, wake_rows, num_TE_edges))
+        wake_panel_width = csdl.average(panel_widths, axes=(1,))
+        dPhi_span = mu_w[:,:num_TE_edges] # all the same, take the first row
+    else:
+        if neppwp == 1:
+            wake_panel_width = panel_widths
+        else:
+            wake_panel_width = eval_pts[:,1:,1] - eval_pts[:,:-1,1]
+            wake_panel_width = (wake_panel_width**2)**0.5
+        dPhi_span = mu_w
+
+    if constant_geometry:
+        wake_panel_width = wake_panel_width[0,:].expand((num_nodes, num_TE_edges), 'i->ji')
+
+    # print(dPhi_span.shape)
+    # print(wake_panel_width.shape)
+    # trefftz plane integral
+    w_avg_panel = (w[:,:-1]+w[:,1:])/2
+    if neppwp == 1:
+        TPI_integrand = dPhi_span*w_avg_panel*wake_panel_width
+    else:
+        dPhi_span = dPhi_span.expand(mu_w.shape + (neppwp,), 'ij->ija').reshape((num_nodes, (ns-1)*neppwp))
+        TPI_integrand = dPhi_span*w_avg_panel*wake_panel_width
+    # TPI_integrand = dPhi_span*w*wake_panel_width
     # print(TPI_integrand.shape)
     TPI = csdl.sum(TPI_integrand, axes=(1,))
     # print(TPI.shape)

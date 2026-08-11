@@ -59,6 +59,7 @@ default_input_dict = {
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
     'drag_type': 'Trefftz',                # pressure or Trefftz
+    'neppwp': 1,                            # number of Trefftz plane evaluation points per wake element column
 
     # steady solver wake relaxation parameters
     'wake_relaxation': False,               # wake relaxation flag

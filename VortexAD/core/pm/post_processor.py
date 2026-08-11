@@ -119,7 +119,7 @@ def post_processor(mesh_dict, mu, sigma, num_nodes, rho=1.225, Cp_cutoff=-100.):
 def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_nodes, 
                                 compressibility=False, rho=1.225, Cp_cutoff=-100., 
                                 constant_geometry=False, ref_point=np.zeros(3), 
-                                ref_area=10., ref_chord=1., sos=340.3, drag_type='pressure'):
+                                ref_area=10., ref_chord=1., sos=340.3, drag_type='pressure', neppwp=1):
     x_dir_global = np.array([1., 0., 0.])
     z_dir_global = np.array([0., 0., 1.])
     output_dict = {}
@@ -239,8 +239,9 @@ def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_
     CM = moment/(0.5*rho_exp_CM*ref_area*Q_inf_exp**2*ref_chord)
 
     if drag_type == 'Trefftz':
-        from VortexAD.core.pm.trefftz_plane import trefftz_plane_drag
-        Di_Trefftz = trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry)
+        from VortexAD.core.pm.trefftz_plane import trefftz_plane_drag, trefftz_plane_drag_new
+        # Di_Trefftz = trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry, neppwp)
+        Di_Trefftz = trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry, neppwp)
         if compressibility:
             if constant_geometry:
                 denom = beta[:,0]
