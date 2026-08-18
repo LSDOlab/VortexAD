@@ -17,7 +17,7 @@ recorder.start()
 
 # set up input dictionary
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster.stl' # LE TE clustering + tri
-mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_mix.msh' # LE TE clustering + tri
+# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_mix.msh' # LE TE clustering + tri
 # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch.stl' # same with tip bunch
 # mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/naca0012_LE_TE_cluster_tip_bunch_quad.msh' # quads?
 pitch = csdl.Variable(value=np.array([5.]))
@@ -82,11 +82,13 @@ sim.run()
 
 CL_val = sim[CL]
 CDi_val = sim[CDi]
+CDi_T_val = sim[CDi_T]
 CP_val = sim[CP]
 mu_val = sim[mu]
 
 print('CL:', CL_val)
 print('CDi:', CDi_val)
+print('CDi (Trefftz):', CDi_T_val)
 
 panel_method.plot(CP_val, bounds=[-1.5,1])
 panel_method.plot(mu_val)

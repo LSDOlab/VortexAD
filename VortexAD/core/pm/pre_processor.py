@@ -300,6 +300,7 @@ def pre_processor(mesh_dict, mode='structured', constant_geometry=False, bc='Dir
         panel_area = csdl.Variable(value=np.zeros(panel_normal.shape[:-1]))
         coll_point_velocity = csdl.Variable(value=np.zeros((nodal_vel.shape[0],) + panel_normal.shape[1:]))
         print(nodal_vel.shape)
+        print(f'num cells: {num_cells}')
 
         start, stop = 0, 0
         for i, cell_type in enumerate(cell_types):

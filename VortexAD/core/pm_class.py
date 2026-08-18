@@ -1,16 +1,21 @@
-import numpy as np
+import logging
+import os
+
 import csdl_alpha as csdl
 import meshio
-
-from VortexAD.utils.unstructured_grids.cell_adjacency import find_cell_adjacency, find_wake_cell_adjacency
-from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
+import numpy as np
 
 from VortexAD.core.pm.steady_panel_solver import steady_panel_solver
+from VortexAD.utils.unstructured_grids.TE_detection import TE_detection
+from VortexAD.utils.unstructured_grids.cell_adjacency import (
+    find_cell_adjacency,
+    find_wake_cell_adjacency,
+)
+
 try:
     from VortexAD.core.pm.unsteady_panel_solver import unsteady_panel_solver
-except:
-    pass
-import os
+except ImportError as exc:
+    logging.warning("Could not import unsteady_panel_solver: %s", exc)
 
 current_directory = os.getcwd()
 default_mesh_path = current_directory + '/geometry/sample_meshes/naca0012_LE_TE_cluster.stl'
@@ -58,8 +63,8 @@ default_input_dict = {
     'ref_area': 10.,                        # reference area (l^2, l being the input length unit)
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
-    'drag_type': 'Trefftz',                # pressure or Trefftz
-    'neppwp': 1,                            # number of Trefftz plane evaluation points per wake element column
+    'drag_type': 'Trefftz',                 # pressure or Trefftz
+    'Trefftz_integration_pts': 5,           # number of Trefftz plane evaluation points per wake element column
 
     # steady solver wake relaxation parameters
     'wake_relaxation': False,               # wake relaxation flag

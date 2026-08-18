@@ -22,7 +22,7 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
     ref_chord       = solver_options_dict['ref_chord']
     moment_ref      = solver_options_dict['moment_reference']
     drag_type       = solver_options_dict['drag_type']
-    neppwp          = solver_options_dict['neppwp']
+    neppwp          = solver_options_dict['Trefftz_integration_pts']
 
     if isinstance(rho, float):
         rho = csdl.Variable(value=np.array([rho]))

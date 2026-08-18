@@ -18,7 +18,7 @@ recorder.start()
 
 # set up input dictionary
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine.stl'
-# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_mix.msh'
+# mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/onera_m6_fine_quad.msh'
 pitch = csdl.Variable(value=np.array([3.06]))
 
 # input dict
@@ -40,11 +40,12 @@ panel_method = PanelMethod(
 pm_outputs = [
     'CL',
     'CDi',
+    'CDi_Trefftz',
     'Cp'
 ]
 panel_method.declare_outputs(pm_outputs)
 # panel_method.mesh_filepath = mesh_file_path
-panel_method.setup_grid_properties(threshold_angle=90, plot=True) # optional for debugging
+panel_method.setup_grid_properties(threshold_angle=125, plot=True) # optional for debugging
 # exit()
 # run the panel method
 outputs = panel_method.evaluate()
@@ -52,11 +53,12 @@ outputs = panel_method.evaluate()
 # read outputs
 CL = outputs['CL']
 CDi = outputs['CDi']
+CDi_T = outputs['CDi_Trefftz']
 CP = outputs['Cp']
 
 # csdl-jax stuff
 inputs = [pitch]
-outputs = [CL, CDi, CP]
+outputs = [CL, CDi, CDi_T, CP]
 
 sim = csdl.experimental.JaxSimulator(
     recorder=recorder,
@@ -68,9 +70,11 @@ sim.run()
 
 CL_val = sim[CL]
 CDi_val = sim[CDi]
+CDi_T_val = sim[CDi_T]
 CP_val = sim[CP]
 
 print('CL:', CL_val)
 print('CDi:', CDi_val)
+print('CDi (Trefftz):', CDi_T_val)
 
-panel_method.plot(CP_val, bounds=[-4,1])
+panel_method.plot(CP_val, bounds=[-2,1])
