@@ -218,7 +218,7 @@ def trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, cons
         dPhi_span = mu_w
 
         if constant_geometry:
-            wake_panel_width = wake_panel_width[0,:].expand((num_nodes, num_TE_edges), 'i->ji')
+            wake_panel_width = wake_panel_width[0,:].expand((num_geom_nodes, ns_panels, neppwp), 'ij->aij')
 
     # print(dPhi_span.shape)
     # print(wake_panel_width.shape)

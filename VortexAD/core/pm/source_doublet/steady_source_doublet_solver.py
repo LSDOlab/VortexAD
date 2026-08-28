@@ -89,4 +89,6 @@ def source_doublet_solver(orig_mesh_dict, solver_options_dict):
     output_dict['mu_wake'] = mu_wake
     if solver_options_dict['wake_relaxation']:
         output_dict['V_w_relax'] = wake_dict['V_w_relax']
+
+    output_dict['panel_centers'] = mesh_dict['panel_center']
     return output_dict, mesh_dict, mu, sigma

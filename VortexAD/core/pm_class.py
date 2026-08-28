@@ -55,6 +55,7 @@ default_input_dict = {
     
     # ROM options
     'ROM': False,                           # 'ROM-POD or ROM-Krylov
+    'ROM_basis': None,                      # basis for ROM (POD or other offline-trained basis)
 
     # reusing AIC (no alpha dependence on wake) --> this only applies to fixed wake
     'reuse_AIC': False,

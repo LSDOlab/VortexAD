@@ -40,13 +40,18 @@ def mu_sigma_solver(num_nodes, mesh_dict, solver_options_dict, mode='structured'
     if batch_size and ROM:
         sigma_nn = sigma[0,:]
         UT, U = ROM[0], ROM[1]
-        RHS_red, AIC_red = compute_batched_aic_POD(mesh_dict, wake_mesh_dict, sigma_nn, batch_size, ROM)
+        # RHS_red, AIC_red = compute_batched_aic_POD(mesh_dict, wake_mesh_dict, sigma_nn, batch_size, ROM)
+        RHS_red, AIC_red = compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma_nn, batch_size, ROM)
         mu_red = csdl.solve_linear(AIC_red, RHS_red)
         mu = csdl.matvec(U, mu_red).reshape(sigma.shape)
         # print(mu.shape)
         # exit()
 
-        return mu, sigma, wake_mesh_dict, None, None, None, None
+        upper_TE_cell_ind = mesh_dict['upper_TE_cells']
+        lower_TE_cell_ind = mesh_dict['lower_TE_cells']
+        mu_wake = mu[:,upper_TE_cell_ind] - mu[:,lower_TE_cell_ind]
+
+        return mu, sigma, mu_wake, wake_mesh_dict, AIC_red, None, RHS_red, None
     else:
         if mode == 'structured':
             if bc == 'Dirichlet':
@@ -2043,6 +2048,177 @@ def compute_batched_aic_POD(mesh_dict, wake_mesh_dict, sigma, batch_size, ROM):
 
     return RHS_red, AIC_red
 
+def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, ROM):
+
+    cells = mesh_dict['cell_point_indices'] # keys are cell types, entries are points for each cell
+    cell_types = list(cells.keys())
+    cell_adjacency_types = mesh_dict['cell_adjacency'] # keys are cell types, entries are adjacent cell indices
+    num_cells_per_type = [len(cell_adjacency_types[cell_type]) for cell_type in cell_types]
+    num_tot_panels = sum(num_cells_per_type)
+
+    upper_TE_cell_ind = mesh_dict['upper_TE_cells']
+    lower_TE_cell_ind = mesh_dict['lower_TE_cells']
+    num_wake_panels = wake_mesh_dict['num_panels']
+    UT, U = ROM[0], ROM[1]
+    num_nodes = 1 # NOTE: CHANGE
+    phi_T_AIC = csdl.Variable(shape=(num_nodes, UT.shape[0], num_tot_panels), value=0.)
+    # RHS = csdl.Variable(shape=(num_tot_panels, 1), value=0.)
+    # NOTE: don't forget num_nodes here
+
+    '''
+    In this set of nested loops, we compute info needed for:
+    - reduced AIC
+        - \phi_T * A requires full nested loops
+        - after nested loops, do a direct matrix multiplication with phi to 
+            get reduced AIC (phi^T * A * phi)
+    - reduced RHS 
+        - first generating AIC_sigma * sigma using batching
+        - after nested loops, do a direct matrix multiplication with phi^T 
+            to get the reduced RHS (phi^T * (AIC_sigma * sigma))
+    '''
+
+    RHS_batch_func = csdl.experimental.batch_function(
+        compute_aic_mat_vec, 
+        batch_size=batch_size, 
+        batch_dims=[1]+[None]*10
+    )
+    # row batching of matrix with simultaneous matvec with sigma vector
+
+    phi_T_AIC_batch_func = csdl.experimental.batch_function(
+        compute_phi_T_aic_mat_mat, 
+        batch_size=batch_size, 
+        batch_dims=[None] + [1]*8 + [None, None]
+    )
+
+    # vectorized across all elements, regardless of number of edges
+    coll_point_eval = mesh_dict['panel_center_mod']
+    normal_vec_eval = mesh_dict['panel_normal']
+
+    '''
+    only need to loop over the cells that DO the influencing
+    the points of influence (and other parameters like normal vectors) 
+    can be vectorized regardless of element edge count (tri, quad, etc.)
+    '''
+    start_j, stop_j = 0, 0
+    RHS_list = []
+    for j, cell_type_j in enumerate(cell_types):
+        num_cells_j = num_cells_per_type[j]
+        stop_j += num_cells_j
+
+        coll_point = mesh_dict['panel_center_' + cell_type_j] # (nn, num_tot_panels, 3)
+        panel_corners = mesh_dict['panel_corners_' + cell_type_j] # (nn, num_tot_panels, 3, 3) 
+        panel_x_dir = mesh_dict['panel_x_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
+        panel_y_dir = mesh_dict['panel_y_dir_' + cell_type_j] # (nn, num_tot_panels, 3)
+        panel_normal = mesh_dict['panel_normal_' + cell_type_j] # (nn, num_tot_panels, 3)
+        S = mesh_dict['S_' + cell_type_j]
+        SL = mesh_dict['SL_' + cell_type_j]
+        SM = mesh_dict['SM_' + cell_type_j]
+
+        # RHS matvec assembly here
+        RHS_cell = RHS_batch_func(
+            coll_point_eval,
+            coll_point,
+            panel_corners,
+            panel_x_dir,
+            panel_y_dir,
+            panel_normal,
+            S,
+            SL,
+            SM,
+            # sigma[:, start_j:stop_j],
+            sigma[start_j:stop_j], # for some reason we did sigma[0,:] outside of this function
+            'source'
+        ) * -1.
+        RHS_cell = RHS_cell.reshape((num_cells_j,1))
+        RHS_list.append(RHS_cell)
+
+        # assembly of phi^T * AIC_mu here
+        # phi_T_AIC_batched_func = csdl.experimental.batch_function(compute_phi_T_aic_mat_mat, batch_size=batch_size, batch_dims=[None] + [1]*8 + [None, None])
+        UT_cell = UT[:, start_j:stop_j]
+        U_cell = U[start_j:stop_j, :]
+        
+        phi_T_AIC_cell = phi_T_AIC_batch_func(
+            coll_point_eval,
+            coll_point,
+            panel_corners,
+            panel_x_dir,
+            panel_y_dir,
+            panel_normal,
+            S,
+            SL,
+            SM,
+            UT,
+            'doublet'
+        )
+        loop_vals = [np.arange(U.shape[1], dtype=int).tolist()]
+        # loop_vals = [np.arange(num_cells_j, dtype=int).tolist()]
+        with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+            i = loop_builder.get_loop_indices()
+            phi_T_AIC_ind = phi_T_AIC_cell[:,i,:]
+        
+        phi_T_AIC_ind = loop_builder.add_stack(phi_T_AIC_ind)
+        loop_builder.finalize()
+        # phi_T_AIC = phi_T_AIC_ind.reshape(UT.shape)
+        
+        phi_T_AIC = phi_T_AIC.set(
+            csdl.slice[:,:,start_j:stop_j],
+            # phi_T_AIC_cell
+            phi_T_AIC_ind.reshape((num_nodes, U.shape[1], num_cells_j))
+        )
+
+    RHS_full = sum(RHS_list)
+
+    RHS_red = csdl.matvec(UT, RHS_full)
+    AIC_red_surf = csdl.matmat(phi_T_AIC[0,:], U)
+
+    # computing wake AIC matrix with the batched POD
+    coll_point_wake = wake_mesh_dict['panel_center'] # (nn, num_wake_panels, 3)
+    panel_corners_wake = wake_mesh_dict['panel_corners'] # (nn, num_wake_panels, 3, 3) 
+    panel_x_dir_wake = wake_mesh_dict['panel_x_dir'] # (nn, num_wake_panels, 3)
+    panel_y_dir_wake = wake_mesh_dict['panel_y_dir'] # (nn, num_wake_panels, 3)
+    panel_normal_wake = wake_mesh_dict['panel_normal'] # (nn, num_wake_panels, 3)
+    S_wake = wake_mesh_dict['S']
+    SL_wake = wake_mesh_dict['SL']
+    SM_wake = wake_mesh_dict['SM']
+
+    upper_TE_cell_ind = mesh_dict['upper_TE_cells']
+    lower_TE_cell_ind = mesh_dict['lower_TE_cells']
+    nw = len(upper_TE_cell_ind)
+    phi_T_AIC_wake_batched_func = csdl.experimental.batch_function(compute_phi_T_aic_mat_mat, batch_size=2, batch_dims=[None] + [1]*8 + [None, None])
+    phi_T_AIC_wake = phi_T_AIC_wake_batched_func(
+        coll_point_eval,
+        coll_point_wake,
+        panel_corners_wake,
+        panel_x_dir_wake,
+        panel_y_dir_wake,
+        panel_normal_wake,
+        S_wake,
+        SL_wake,
+        SM_wake,
+        UT,
+        'wake'
+    )
+
+    loop_vals = [np.arange(U.shape[1], dtype=int).tolist()]
+    with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+        i = loop_builder.get_loop_indices()
+        phi_T_AIC_ind_wake = phi_T_AIC_wake[:,i,:]
+    
+    phi_T_AIC_ind_wake = loop_builder.add_stack(phi_T_AIC_ind_wake)
+    loop_builder.finalize()
+    phi_T_AIC_wake = phi_T_AIC_ind_wake.reshape(UT.shape[0], nw)
+
+    # phi_T_AIC_wake = csdl.einsum(phi_T_AIC_wake, action='ijk->jik').reshape((UT.shape[0], nw))
+    U_upper_TE_cells = U[upper_TE_cell_ind,:]
+    U_lower_TE_cells = U[lower_TE_cell_ind,:]
+    U_TE_diff = U_upper_TE_cells-U_lower_TE_cells
+
+    AIC_red_wake = csdl.matmat(phi_T_AIC_wake, U_TE_diff)
+
+    AIC_red = AIC_red_surf + AIC_red_wake
+    # AIC_red = AIC_red_surf
+
+    return RHS_red, AIC_red
 
 def compute_aic_mat_vec(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
                         panel_normal, S_j, SL_j, SM_j, v, mode='doublet'):
@@ -2059,6 +2235,7 @@ def compute_aic_mat_vec(coll_point, panel_center, panel_corners, panel_x_dir, pa
     
     num_interactions = num_eval_pts*num_induced_pts
     num_corners = 3
+    num_corners = panel_corners.shape[2]
     if mode == 'wake':
         num_corners = 4
     expanded_shape = (num_nodes, num_eval_pts, num_induced_pts, num_corners, 3)
@@ -2176,6 +2353,7 @@ def compute_phi_T_aic_mat_mat(coll_point, panel_center, panel_corners, panel_x_d
     
     num_interactions = num_eval_pts*num_induced_pts
     num_corners = 3
+    num_corners = panel_corners.shape[2]
     if mode == 'wake':
         num_corners = 4
     expanded_shape = (num_nodes, num_eval_pts, num_induced_pts, num_corners, 3)
