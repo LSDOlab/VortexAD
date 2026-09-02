@@ -15,7 +15,13 @@ def steady_vlm_solver(orig_mesh_dict, solver_options_dict):
 
     gamma = gamma_solver(num_nodes, mesh_dict)
 
-    surface_output_dict, total_output_dict = post_processor(num_nodes, mesh_dict, gamma, alpha_ML=alpha_ML)
+    surface_output_dict, total_output_dict = post_processor(
+        num_nodes,
+        mesh_dict,
+        gamma,
+        alpha_ML=alpha_ML,
+        rho=solver_options_dict["rho"],
+    )
     surface_output_dict['gamma'] = gamma
     surface_output_dict['wake_vortex_mesh'] = mesh_dict['surface_0']['wake_vortex_mesh']
     surface_output_dict['net_gamma'] = surface_output_dict['net_gamma'][0]

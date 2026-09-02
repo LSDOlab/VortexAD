@@ -1,7 +1,15 @@
 import numpy as np
 import csdl_alpha as csdl 
 
-def compute_forces(num_nodes, mesh_dict, output_dict, V_inf=None, alpha_ML=None, ref_point='default'):
+def compute_forces(
+    num_nodes,
+    mesh_dict,
+    output_dict,
+    V_inf=None,
+    alpha_ML=None,
+    ref_point='default',
+    rho=1.225,
+):
     surface_names = list(mesh_dict.keys())
     num_surfaces = len(surface_names)
 
@@ -65,8 +73,6 @@ def compute_forces(num_nodes, mesh_dict, output_dict, V_inf=None, alpha_ML=None,
         # print(v_induced.value)
         # print(v_total.value)
         # exit()
-
-        rho=1.225
 
         panel_forces = net_gamma_exp*csdl.cross(v_total, bound_vec, axis=3) * rho
         output_dict[surface_name]['total_forces'] = panel_forces

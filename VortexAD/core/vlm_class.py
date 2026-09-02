@@ -7,8 +7,6 @@ try:
 except:
     pass
 
-from VortexAD.utils.plotting.plot_vlm import plot_wireframe
-
 default_input_dict = {
     # flow properties
     'V_inf': None, # m/s
@@ -64,7 +62,7 @@ default_input_dict = {
 
 class VortexLatticeMethod(object):
     def __init__(self, solver_input_dict):
-        options_dict = default_input_dict
+        options_dict = default_input_dict.copy()
         for key in solver_input_dict.keys():
             options_dict[key] = solver_input_dict[key]
         self.options_dict = options_dict
@@ -266,8 +264,6 @@ class VortexLatticeMethod(object):
         nn_geom = self.num_nodes
         if self.reuse_AIC:
             nn_geom = 1
-        print(self.num_nodes)
-        # exit()
         if len(self.meshes[0].shape) == 4: # (nn, nc, ns, 3)
             self.meshes = self.meshes
         else:
@@ -331,6 +327,8 @@ class VortexLatticeMethod(object):
         return output_dict
 
     def plot_unsteady(self, meshes, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='sample_vlm_ani', fps=5):
+        from VortexAD.utils.plotting.plot_vlm import plot_wireframe
+
         num_meshes = len(meshes)
         mesh_connectivity = []
         wake_connectivity = []
@@ -352,10 +350,6 @@ class VortexLatticeMethod(object):
                 j+1 + i*ns,
             ] for j in range(ns-1)] for i in range(nt-1)])
             wake_connectivity.append(wake_mesh_con)
-        
 
-
-        plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data, 
+        plot_wireframe(meshes, mesh_connectivity, wake_mesh, wake_connectivity, surface_data, wake_data,
                        bounds=bounds, wake_form=wake_form, interactive=interactive, camera=camera, name=name, fps=fps)
-
-            

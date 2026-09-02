@@ -5,7 +5,7 @@ from VortexAD.core.vlm.compute_net_circulation import compute_net_circulation
 from VortexAD.core.vlm.compute_AIC import compute_AIC
 from VortexAD.core.vlm.compute_forces import compute_forces
 
-def post_processor(num_nodes, mesh_dict, gamma, alpha_ML=None):
+def post_processor(num_nodes, mesh_dict, gamma, alpha_ML=None, rho=1.225):
     output_dict = {}
 
     net_gamma_dict = compute_net_circulation(num_nodes, mesh_dict, gamma)
@@ -38,7 +38,13 @@ def post_processor(num_nodes, mesh_dict, gamma, alpha_ML=None):
     # NOTE: PROJECT THE MESH VELOCITIES ONTO THE TOTAL VELOCITY FOR THE FORCE CALCULATION
 
     # compute lift and drag
-    surface_output_dict, total_output_dict = compute_forces(num_nodes, mesh_dict, output_dict, alpha_ML=alpha_ML)
+    surface_output_dict, total_output_dict = compute_forces(
+        num_nodes,
+        mesh_dict,
+        output_dict,
+        alpha_ML=alpha_ML,
+        rho=rho,
+    )
     # output_dict is being populated inside of this function
     
     
