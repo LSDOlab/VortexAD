@@ -129,7 +129,7 @@ def trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, cons
         eval_pts = eval_edge_pts.reshape((num_nodes, ns_panels*2, 3))
     else:
         eval_pts = csdl.Variable(
-            value=np.zeros((num_nodes, ns_panels, (neppwp+1), 3))
+            value=np.zeros((num_geom_nodes, ns_panels, (neppwp+1), 3))
         )
 
         for i in csdl.frange(neppwp+1):
@@ -138,7 +138,7 @@ def trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, cons
                 csdl.slice[:,:,i,:],
                 asdf
             )
-        eval_pts = eval_pts.reshape((num_nodes, ns_panels*(neppwp+1), 3))
+        eval_pts = eval_pts.reshape((num_geom_nodes, ns_panels*(neppwp+1), 3))
 
 
     # upstream_edge_nodes = csdl.Variable(value=np.zeros((num_nodes, ns_panels, 3))) # num_nodes, num_TE_edges, 3
@@ -205,14 +205,14 @@ def trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, cons
     # adjusting for more than 1 wake rows
     wake_rows = wake_connectivity.shape[0]
     if wake_rows > 1: # NOTE: CHECK TO MAKE SURE THE SHAPES HERE ARE CORRECT RELATIVE TO WAKE CONNECTIVITY
-        panel_widths = panel_widths.reshape((num_nodes, wake_rows, num_TE_edges))
+        panel_widths = panel_widths.reshape((num_geom_nodes, wake_rows, num_TE_edges))
         wake_panel_width = csdl.average(panel_widths, axes=(1,))
         dPhi_span = mu_w[:,:num_TE_edges] # all the same, take the first row
     else:
         if neppwp == 1:
             wake_panel_width = panel_widths
         else:
-            eval_pts_reshaped = eval_pts.reshape((num_nodes, ns_panels, neppwp+1, 3))
+            eval_pts_reshaped = eval_pts.reshape((num_geom_nodes, ns_panels, neppwp+1, 3))
             wake_panel_width = eval_pts_reshaped[:,:,1:,1] - eval_pts_reshaped[:,:,:-1,1]
             wake_panel_width = (wake_panel_width**2)**0.5
         dPhi_span = mu_w
@@ -231,6 +231,8 @@ def trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, cons
         TPI_integrand = dPhi_span*w_avg_panel[:,:,0]*wake_panel_width
     else:
         dPhi_span = dPhi_span.expand(mu_w.shape + (neppwp,), 'ij->ija')
+        if constant_geometry:
+            wake_panel_width = wake_panel_width[0,:].expand((num_nodes, ns_panels, neppwp), 'ij->aij')
         TPI_integrand = dPhi_span*w_avg_panel*wake_panel_width
         TPI_integrand = csdl.sum(TPI_integrand, axes=(2,)) # sum over the neppwp panels
     # TPI_integrand = dPhi_span*w*wake_panel_width
