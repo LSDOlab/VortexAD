@@ -20,9 +20,7 @@ The optimization uses taper ratio, span, root twist and tip twist to optimize th
 In our lab, we store optimization data in `hdf5` files.
 The post-processing pipeline has a simple way of extracting this data and storing it in a more user-friendly file format.
 
-First, run `extract_data.py` with the proper file/case name in line 10.
-This will convert the optimization data into a `.pkl` file format. 
-The data can be looked at by running the `check_data.py` file.
-Sectional data can be extractetd using `gen_sectional_data.py`.
-Note that many of the details here are hard-coded.
-This data can be used in `plot_sectional_data.py` to view spanwise lift and twist distributions.
+Post-processing steps:
+- Run `extract_data.py` with the proper file/case name in line 10. This will convert the optimization data into a `.pkl` file format. The data can be looked at by running the `check_data.py` file.
+- Extract sectional data by running using `gen_sectional_data.py`. This is not fully generalized yet;  many of the details here are hard-coded.
+- Some spanwise properties can be plotted using `plot_sectional_data.py` to view spanwise lift and twist distributions.

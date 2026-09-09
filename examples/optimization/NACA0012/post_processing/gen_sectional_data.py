@@ -105,21 +105,6 @@ planform_area = (root_chord_outer_dv + tip_chord_outer_dv) / 2 * wingspan_outer_
 planform_area.add_name('planform_area')
 planform_area_0 = planform_area.value
 
-asdf = geometry.plot(show=False)
-# deformed_geometry.plot(
-#     opacity=0.5,
-#     color='yellow',
-#     additional_plotting_elements=[asdf]
-# )
-
-# left_wing_new = deformed_geometry.declare_component(wing_l_indices)
-# left_wing_new.plot(
-#     opacity=0.5,
-#     color='yellow',
-#     additional_plotting_elements=[[asdf[ind] for ind in wing_l_indices]],
-#     show=False
-# )
-
 # endregion
 
 fname = 'NACA0012_opt_demo'
@@ -148,6 +133,7 @@ V_vec = np.array([
     V_inf*np.sin(pitch*np.pi/180)
 ])
 
+# function to get spanwise properties
 def get_spanwise_dist_data(surf_ind):
 
     # sort panels and CP locations
@@ -228,17 +214,6 @@ geometry functions (from in front of the nose/LE)
 7: right wing, top wing tip
 '''
 
-# lower_center_oml = geometry.functions[0]
-# upper_center_oml = geometry.functions[1]
-# lower_left_wing = geometry.functions[2]
-# upper_left_wing = geometry.functions[3]
-# lower_right_wing = geometry.functions[4]
-# upper_right_wing = geometry.functions[5]
-
-# upper_surf_indices = [1, 3, 5]
-# lower_surf_indices = [0, 2, 4]
-# num_spanwise_surfs = 3 
-
 upper_surf_indices = [1]
 lower_surf_indices = [0]
 num_spanwise_surfs = 1
@@ -289,8 +264,6 @@ import pyvista as pv
 # spanwise lift plot
 spanwise_lift_chart = pv.Chart2D(x_label='span position (m)', y_label='sectional lift')
 spanwise_lift_chart.line(sec_center, dLdb)
-# spanwise_lift_chart.line([chs, chs], [np.min(dLdb), np.max(dLdb)], style='--')
-# spanwise_lift_chart.line([chs+ths, chs+ths], [np.min(dLdb), np.max(dLdb)], style='--')
 spanwise_lift_chart.show()
 
 
@@ -336,6 +309,8 @@ file_name = fname
 
 with open(f'{dir_name}/{fname}_sectional_data.pkl', 'wb') as file:
     pickle.dump(output_data, file)
+
+
 exit()
 
 def compute_sectional_twist(geom, surf_ind, nu, nv):
