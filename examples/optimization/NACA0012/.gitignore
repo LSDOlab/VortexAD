@@ -1,0 +1,6 @@
+# *
+# !.gitignore
+# !README.md
+# !run_optimization.py
+# !geometry_function.py
+.hdf5

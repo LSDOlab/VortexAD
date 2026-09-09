@@ -1,0 +1,5 @@
+This directory serves as a place for simple optimization demonstrations.
+The existing examples are listed below.
+
+1. NACA0012
+    - lift-constrained drag minimization
