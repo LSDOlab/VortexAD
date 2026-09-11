@@ -45,7 +45,7 @@ setup(
         'astroid==2.15.5',
         'numpydoc',
         'gitpython',
-        'sphinxcontrib-collections @ git+https://github.com/anugrahjo/sphinx-collections.git', # 'sphinx-collections',
+        # 'sphinxcontrib-collections @ git+https://github.com/anugrahjo/sphinx-collections.git', # 'sphinx-collections',
         'sphinxcontrib-bibtex',
         'setuptools',
         'wheel',
