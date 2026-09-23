@@ -168,5 +168,14 @@ def setup_geometry_parameterization(geometry):
     print("Wingspan Stretching: ", wingspan_stretching_b_spline.coefficients.value) # type: ignore
     print("Sweep Translation: ", sweep_translation_b_spline.coefficients.value) # type: ignore
     # endregion Setup and Evaluate Geometry Parameterization Solver
+
+    DV_dict = {
+        'root_twist_dv': root_twist_dv,
+        'tip_twist_dv': tip_twist_dv,
+        'wingspan_outer_dv': wingspan_outer_dv,
+        'taper_ratio_dv': taper_ratio_dv,
+        'tip_chord_outer_dv': tip_chord_outer_dv,
+        'root_chord_outer_dv': root_chord_outer_dv,
+    }
     
-    return geometry
+    return geometry, DV_dict

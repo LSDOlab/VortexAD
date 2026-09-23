@@ -1,6 +1,7 @@
-# *
-# !.gitignore
-# !README.md
-# !run_optimization.py
-# !geometry_function.py
-.hdf5
+/*
+!.gitignore
+!README.md
+!run_optimization.py
+!geometry_function.py
+!/geometry/
+!/post_processing/

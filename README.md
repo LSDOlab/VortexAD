@@ -58,5 +58,8 @@ For details on documentation, refer to the README in `docs` directory.
 
 For details on testing/pull requests, refer to the README in `tests` directory.
 
+## Public Release Statement
+The development of this software was supported, in part, by the Air Force Research Laboratory through the Collaborative Center for the Design and Research Of InterDisciplinary Systems (CC DROIDS). Distribution Statement A: Approved for public release; distribution is unlimited. PA# AFRL-YEAR-XXXX. This authorization applies to Git commit 0713357.
+
 # License
 This project is licensed under the terms of the **GNU Lesser General Public License v3.0**.

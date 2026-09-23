@@ -19,7 +19,7 @@ lfs.num_workers=1
 recorder = csdl.Recorder(inline=True)
 recorder.start()
 
-imported_function_set = lfs.import_file_patched(file_name="rectangular_wing_naca0012_10ar.stp", parallelize=False)
+imported_function_set = lfs.import_file_patched(file_name="geometry/rectangular_wing_naca0012_10ar.stp", parallelize=False)
 geometry = lsdo_geo.Geometry(functions=imported_function_set.functions, 
                                       function_names=imported_function_set.function_names,
                                       name='imported_geometry',
@@ -28,7 +28,7 @@ geometry = lsdo_geo.Geometry(functions=imported_function_set.functions,
 # geometry.plot() # plots geometry using pyvista
 
 # region panel mesh import
-mesh = meshio.read("rectangular_wing_naca0012_10ar.msh")
+mesh = meshio.read("geometry/rectangular_wing_naca0012_10ar.msh")
 
 points_orig = mesh.points
 cells = mesh.cells
@@ -202,7 +202,7 @@ CDi.add_name('CDi')
 # region setting up optimization and testing structure
 csdl.save_optimization_variables()
 
-fname = f'NACA0012_opt_demo'
+fname = 'NACA0012_opt_demo'
 
 testing = False
 check_derivs = False

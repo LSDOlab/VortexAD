@@ -26,7 +26,8 @@ recorder = csdl.Recorder(inline=False)
 recorder.start()
 
 # set up input dictionary
-file_name = 'bwb.stl'
+# file_name = 'transport_bwb_no_wingtip.stl'
+file_name = 'transport_bwb_quad_no_wingtip.stl'
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/' + file_name
 
 if manual_mesh_upload:
