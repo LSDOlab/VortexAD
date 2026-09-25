@@ -11,10 +11,8 @@ def compute_AIC(num_nodes, mesh_dict, eval_pt_name):
         ns, nc = mesh_dict[key]['ns'], mesh_dict[key]['nc']
         num_total_panels += (ns-1)*(nc-1)
     if eval_pt_name == 'collocation_points':
-    # if not force_computation:
         AIC = csdl.Variable(shape=(num_nodes, num_total_panels, num_total_panels,), name='AIC', value=0.)
     elif eval_pt_name == 'force_eval_points':
-    # else:
         AIC = csdl.Variable(shape=(num_nodes, num_total_panels, num_total_panels, 3), name='AIC_force', value=0.)
 
 
@@ -53,10 +51,15 @@ def compute_AIC(num_nodes, mesh_dict, eval_pt_name):
             # VECTORIZE AND EXPAND EVERYTHING TO SHAPE (num_nodes, np_surf_j*np_surf_i) (+ (3,) if needed)
             num_interactions = np_surf_i*np_surf_j
 
+            # p1_bd_grid = bound_vortex_mesh_j[:, :-1, :-1, :]
+            # p2_bd_grid = bound_vortex_mesh_j[:, :-1, 1:, :]
+            # p3_bd_grid = bound_vortex_mesh_j[:, 1:, 1:, :]
+            # p4_bd_grid = bound_vortex_mesh_j[:, 1:, :-1, :]
+
             p1_bd_grid = bound_vortex_mesh_j[:, :-1, :-1, :]
-            p2_bd_grid = bound_vortex_mesh_j[:, :-1, 1:, :]
+            p2_bd_grid = bound_vortex_mesh_j[:, 1:, :-1, :]
             p3_bd_grid = bound_vortex_mesh_j[:, 1:, 1:, :]
-            p4_bd_grid = bound_vortex_mesh_j[:, 1:, :-1, :]
+            p4_bd_grid = bound_vortex_mesh_j[:, :-1, 1:, :]
 
             p1_bd = csdl.expand(p1_bd_grid, (num_nodes, np_surf_i, nc_j-1, ns_j-1, 3), 'ijkl->iajkl')
             p2_bd = csdl.expand(p2_bd_grid, (num_nodes, np_surf_i, nc_j-1, ns_j-1, 3), 'ijkl->iajkl')
@@ -113,10 +116,15 @@ def compute_AIC(num_nodes, mesh_dict, eval_pt_name):
             num_wake_interactions = np_surf_i*np_wake_j
             wake_interaction_shape = (num_nodes, num_wake_interactions, 3)
 
+            # p1_w_grid = wake_vortex_mesh_j[:, :-1, :-1, :]
+            # p2_w_grid = wake_vortex_mesh_j[:, :-1, 1:, :]
+            # p3_w_grid = wake_vortex_mesh_j[:, 1:, 1:, :]
+            # p4_w_grid = wake_vortex_mesh_j[:, 1:, :-1, :]
+
             p1_w_grid = wake_vortex_mesh_j[:, :-1, :-1, :]
-            p2_w_grid = wake_vortex_mesh_j[:, :-1, 1:, :]
+            p2_w_grid = wake_vortex_mesh_j[:, 1:, :-1, :]
             p3_w_grid = wake_vortex_mesh_j[:, 1:, 1:, :]
-            p4_w_grid = wake_vortex_mesh_j[:, 1:, :-1, :]
+            p4_w_grid = wake_vortex_mesh_j[:, :-1, 1:, :]
 
             p1_w = csdl.expand(p1_w_grid, (num_nodes, np_surf_i, nc_w_j-1, ns_w_j-1, 3), 'ijkl->iajkl')
             p2_w = csdl.expand(p2_w_grid, (num_nodes, np_surf_i, nc_w_j-1, ns_w_j-1, 3), 'ijkl->iajkl')
