@@ -1,110 +1,204 @@
 # Configuration file for the Sphinx documentation builder.
+#
+# This file only contains a selection of the most common options. For a full
+# list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import os
-import re
-import shutil
-from pathlib import Path
+# -- Path setup --------------------------------------------------------------
 
-_DOCS = os.path.dirname(os.path.abspath(__file__))
-_REPO = os.path.dirname(_DOCS)
-_TEMP = Path(_DOCS) / "src" / "_temp"
+# If extensions (or modules to document with autodoc) are in another directory,
+# add these directories to sys.path here. If the directory is relative to the
+# documentation root, use os.path.abspath to make it absolute, like shown here.
+
+# import os
+# import sys
+# sys.path.insert(0, os.path.abspath('../VortexAD/core'))     # for autodoc
 
 # -- Project information -----------------------------------------------------
 
-project = "VortexAD"
-copyright = "2026, LSDOlab"
-author = "LSDOlab"
+project = 'VortexAD'
+copyright = '2025, Luca Scotzniovsky'
+author = 'Luca Scotzniovsky'
+version = '0.0.0'
+# release = 0.1.0rtc
 
-try:
-    from importlib.metadata import version as _v
-
-    release = _v("vortexad")
-except Exception:
-    release = "0.1.0"
-version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 
+# Add any Sphinx extension module names here, as strings. They can be
+# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
+# ones.
 extensions = [
     "sphinx_rtd_theme",
     "autoapi.extension",
-    "numpydoc",
-    "sphinx_copybutton",
-    "myst_nb",
-    "sphinx.ext.viewcode",
-    "sphinx.ext.mathjax",
-    "sphinxcontrib.bibtex",
+    "numpydoc",                 
+    "sphinx_copybutton",            # allows copying code embedded in the docs rendered from .md or .ipynb files
+    "myst_nb",                      # renders .md, .myst, .ipynb files
+    "sphinx.ext.viewcode",          # adds the source code for classes and functions in auto generated api ref
+    "sphinxcontrib.collections",    # adds files from outside src and executes functions before Sphinx builds
+    "sphinxcontrib.bibtex",         # for references and citations
 ]
 
-bibtex_bibfiles = ["src/references.bib"]
+# import sphinx as aa
+# print(aa.__version__)
 
+# from pip import _internal
+# _internal.main(['list'])
+
+# sphinxcontrib.bibtex options
+bibtex_bibfiles = ['src/references.bib']
+
+# myst_nb options
 myst_title_to_header = True
 myst_enable_extensions = ["dollarmath", "amsmath", "tasklist"]
-nb_execution_mode = "off"   # notebooks need FEniCSx; ship pre-run outputs
+nb_execution_mode = 'off'
 
-# -- autoapi ---------------------------------------------------------------
-
-autoapi_dirs = ["../vortexad"]
-autoapi_root = "src/autoapi"
-autoapi_type = "python"
-autoapi_file_patterns = ["*.py", "*.pyi"]
-autoapi_options = [
-    "members", "undoc-members", "show-inheritance",
-    "show-module-summary", "imported-members",
-]
-autoapi_ignore = ["*/_ufl_compat.py"]
+# autoapi options
+autoapi_dirs = ["../VortexAD/core"]
+autoapi_root = 'src/autoapi'
+autoapi_type = 'python'
+autoapi_file_patterns = ['*.py', '*.pyi']
+autoapi_options = [ 'members', 'undoc-members', 'private-members', 'show-inheritance', 
+                   'show-module-summary', 'special-members', 'imported-members', ]
 autoapi_add_toctree_entry = False
-autoapi_member_order = "groupwise"
-autoapi_python_class_content = "both"
+autoapi_member_order = 'groupwise'
+autoapi_python_class_content = 'class' # 'both' or '__init'
 
-root_doc = "index"
-templates_path = ["_templates"]
+root_doc = 'index'
 
-# autoapi.python_import_resolution: autoapi noise about the package re-exporting itself.
-suppress_warnings = ["autoapi.python_import_resolution"]
-exclude_patterns = ["README.md", "_build", "Thumbs.db", ".DS_Store", "src/welcome.md"]
+# Add any paths that contain templates here, relative to this directory.
+templates_path = ['_templates']
 
-# -- HTML output ---------------------------------------------------------
+# List of patterns, relative to source directory, that match files and
+# directories to ignore when looking for source files.
+# This pattern also affects html_static_path and html_extra_path.
+exclude_patterns = ['README.md', '_build', 'Thumbs.db', '.DS_Store', 'src/welcome.md']
 
-html_theme = "sphinx_rtd_theme"
-html_baseurl = "https://lsdolab.github.io/VortexAD/"
+
+# -- Options for HTML output -------------------------------------------------
+
+# The theme to use for HTML and HTML Help pages.  See the documentation for
+# a list of builtin themes.
+html_theme = 'sphinx_rtd_theme' # other theme options: 'sphinx_book_theme', 'sphinx_rtd_theme', 
+                                # 'alabaster', 'classic', 'sphinxdoc', 'nature', 'bizstyle', ...
+
+# html_theme_options for sphinx_rtd_theme
 html_theme_options = {
-    "prev_next_buttons_location": "bottom",
-    "style_external_links": False,
-    "style_nav_header_background": "#2980B9",
-    "collapse_navigation": False,
-    "sticky_navigation": True,
-    "navigation_depth": 4,
-    "includehidden": True,
-    "titles_only": True,
+    'logo_only': False,
+    'display_version': True,
+    'prev_next_buttons_location': 'bottom',
+    'style_external_links': False,
+    'vcs_pageview_mode': '',
+    'style_nav_header_background': '#2980B9',   # other valid colors: 'white', ...
+    # toc options
+    'collapse_navigation': False,   # default: True
+    'sticky_navigation': True,
+    'navigation_depth': 4,
+    'includehidden': True,
+    'titles_only': True     # default: False
 }
 
-# -- Stage examples/tutorials, and turn each example script into a page --------
+# Add any paths that contain custom static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin static files,
+# so a file named "default.css" will overwrite the builtin "default.css".
+# html_static_path = ['_static']
 
 
-def _py2md(path):
-    """Turn each examples/**/ex_*.py into a .md page: module docstring (first line =
-    title, rest = prose) followed by the full source in a python code block."""
-    code = path.read_text(encoding="utf-8")
-    m = re.match(r'\s*(?:"""|\'\'\')(.*?)(?:"""|\'\'\')', code, re.DOTALL)
-    if not m:
-        raise SyntaxError(f"{path}: a module docstring (title line) is required")
-    lines = m.group(1).strip().splitlines()
-    title, body = lines[0].strip(), "\n".join(lines[1:]).strip()
-    path.with_suffix(".md").write_text(
-        f"# {title}\n\n{body}\n\n```python\n{code}\n```\n", encoding="utf-8"
-    )
+import glob
+# Function used by collections for converting .py files from examples
+# to .md and writing those into `_temp/target/` directory before Sphinx builds
+def py2md(config):
+    # root_dir needs a trailing slash (i.e. /root/dir/)
+    for ex in glob.iglob(config['target'] + '**/ex_*.py', recursive=True):
+        with open(ex) as f:
+            code = f.read()
+            no_line_breaks = ' '.join(code.splitlines())
+            single_start = 1e20 if code.find("'''") == -1 else code.find("'''")
+            double_start = 1e20 if code.find('"""') == -1 else code.find('"""')
 
+            if single_start < double_start:      
+                title, desc = split_first_string_between_quotes(no_line_breaks, "'")
+            elif double_start < single_start:
+                title, desc = split_first_string_between_quotes(no_line_breaks, '"')
+            else:
+                raise SyntaxError('Docstring for title and description is not declared correctly')
 
-def _stage_examples_and_tutorials(app, config):
-    """Create the ignored, build-local sources required by the documentation."""
-    shutil.rmtree(_TEMP, ignore_errors=True)
-    for name in ("tutorials", "examples"):
-        shutil.copytree(Path(_REPO) / name, _TEMP / name)
-    for example in (_TEMP / "examples").glob("**/ex_*.py"):
-        _py2md(example)
+        with open(ex[:-3]+'.md', 'w') as g:
+            g.write('# ' + title + '\n')
+            g.write(desc + '\n\n')
+            g.write('```python\n')
+            g.write(code)
+            g.write('\n```')
 
+    return
 
-def setup(app):
-    app.connect("config-inited", _stage_examples_and_tutorials)
+import re
+
+def split_first_string_between_quotes(code_string, quotes):
+    if quotes == "'":
+      check = re.search("'''(.+?)'''", code_string)
+    elif quotes == '"':
+      check = re.search('"""(.+?)"""', code_string)
+    
+    if check:
+      docstring = check.group(1)
+      out_strings = docstring.split(':', 1)
+      if len(out_strings)==2:
+        title, desc = out_strings[0].strip(), out_strings[1].strip()
+      else:
+        title, desc = out_strings[0].strip(), ''
+
+      return title, desc
+    
+    else:
+        raise SyntaxError('Docstring for title and description is not declared correctly')
+
+collections = {
+    
+    # copy_tutorials collection copies the contents inside `/tutorials` 
+    # directory into `/src/_temp/tutorials`
+   'copy_tutorials': {
+      'driver': 'copy_folder',
+      'source': '../tutorials', # source relative to path of makefile, not wrt /src
+      'target': 'tutorials/',
+      'ignore': [],
+    #   'active': True,         # default: True. If False, this collection is ignored during doc build.
+    #   'safe': True,           # default: True. If True, any problem will raise an exception and stops the build.
+      'clean': True,            # default: True. If False, no cleanup is done before collections get executed.
+      'final_clean': True,      # default: True. If True, a final cleanup is done at the end of a Sphinx build.
+    #   'tags': ['my_collection', 'dummy'],     # List of tags, which trigger an activation of the collection.
+                                        # Should be used together with active set to False, 
+                                        # otherwise the collection gets always executed.
+                                        # Use -t tag option of sphinx-build command to trigger related collections.
+                                        # e.g. : `sphinx-build -b html -t dummy . _build/html`
+   },
+
+   'copy_examples': {
+      'driver': 'copy_folder',
+      'source': '../examples',  # source relative to path of makefile, not wrt /src
+      'target': 'examples/',
+      'ignore': [],
+      'clean': True,            # default: True. If False, no cleanup is done before collections get executed.
+      'final_clean': True,      # default: True. If True, a final cleanup is done at the end of a Sphinx build.
+   },
+
+    # convert_examples collection converts all .py files to .md files recursively inside `_temp/examples` 
+    # directory and also extracts the docstrings from the .py files to generate title and descriptions
+    # for those examples
+   'convert_examples': {
+      'driver': 'writer_function',  # uses custom WriterFunctionDriver written by Anugrah
+      'from'  : '_temp/examples/',  # source relative to path of makefile, not wrt /src
+      'source': py2md,              # custom function written above in `conf.py`
+      'target': 'examples/',        # target was a file for original FunctionDriver, e.g., 'target': 'examples/temp.txt'
+                                    # the original FunctionDriver was supposed to write only 1 file.
+      'clean': True,       
+      'final_clean': True,      
+    #   'write_result': True,   # this prevents original FunctionDriver from writing to the target file
+   },
+}
+
+collections_target = 'src/_temp'    # default : '_collections', the default storage location for all collections
+collections_clean  = True           # default : True, all configured target locations get wiped out at the beginning
+                                    # can be overwritten for individual collection by setting value for the 'clean' key
+collections_final_clean  = True     # default : True, all collections start their clean-up routine after a Sphinx build is done
+                                    # can be overwritten for individual collection by setting value for the 'final_clean' key

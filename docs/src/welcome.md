@@ -11,12 +11,12 @@ VortexAD is a general purpose potential flow solver library for aerodynamic anal
 
 
 ## Solver toolbox:
-VortexAD holds various potential flow methods in different modes, summarized in the table below; many of these are still a work in progress.
+VortexAD holds various potential flow methods in different modes, summarized in the table below; many of these (specifically the unsteady solvers) are still in development.
 
 |     | Fixed wake | Prescribed wake | Free wake |
 |:---:|:----------:|:---------------:|:---------:|
-| VLM |      WIP   |         No      |      No   |
-|  PM |      Yes   |        WIP      |     WIP   |
+| VLM |      Yes   |        Yes      |     Yes    |
+|  PM |      Yes   |        Yes      |     Yes   |
 
 
 # Cite us
