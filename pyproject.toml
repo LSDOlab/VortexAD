@@ -55,7 +55,6 @@ docs = [
     'numpydoc',
     'gitpython',
     'sphinxcontrib-bibtex',
-    'sphinxcontrib.collections',
 ]
 
 [tool.setuptools]
