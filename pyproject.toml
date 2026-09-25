@@ -71,7 +71,7 @@ norecursedirs = [".conda", ".git", "build", "dist", "examples", "tutorials"]
 # [tool.setuptools_scm]
 # Leaving this present enables automatic git tag versioning
 # Optional: write the generated version to a file for runtime access
-# version_file = "src/your_package/_version.py"
+# version_file = "src/VortexAD/_version.py"
 
 [tool.setuptools.dynamic]
-version = {attr = "your_package_name.__version__"}
+version = {attr = "VortexAD.__version__"}
