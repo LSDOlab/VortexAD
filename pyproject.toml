@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "VortexAD"
+description = "A general-purpose repository for potential flow solvers with automatic adjoint-based differentiation."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "LGPL-3.0-or-later"
+license-files = ["LICENSE.txt"]
+authors = [{name = "Luca Scotzniovsky", email = "lscotzni@ucsd.edu"}]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    'numpy',
+    'pyvista',
+    'joblib',
+    #'pandas',
+    'scipy',
+    #'csdl_alpha @ git+https://github.com/LSDOlab/CSDL_alpha.git',
+    #'lsdo_function_spaces @ git+https://github.com/LSDOlab/lsdo_function_spaces.git',
+
+    'meshio==5.3.5',
+    'vedo',
+]
+# version = "1.0.0"
+dynamic = ["version"]  # Tells the backend the version isn't static
+
+[project.urls]
+Documentation = "https://vortexad.readthedocs.io/en/latest/"
+Repository = "https://github.com/LSDOlab/VortexAD"
+"Issue Tracker" = "https://github.com/LSDOlab/VortexAD/issues"
+
+[project.optional-dependencies]
+test = [
+    'pytest',
+    'pytest-cov',
+]
+docs = [
+    'myst-nb',
+    'sphinx>=7.0',
+    'sphinx_rtd_theme',
+    'sphinx-copybutton',
+    'sphinx-autoapi>=3.0',
+    'numpydoc',
+    'gitpython',
+    'sphinxcontrib-bibtex',
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["VortexAD*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [".conda", ".git", "build", "dist", "examples", "tutorials"]
+
+# [tool.setuptools_scm]
+# Leaving this present enables automatic git tag versioning
+# Optional: write the generated version to a file for runtime access
+# version_file = "src/your_package/_version.py"
+
+[tool.setuptools.dynamic]
+version = {attr = "your_package_name.__version__"}
