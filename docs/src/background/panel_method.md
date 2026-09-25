@@ -6,7 +6,8 @@ title: Panel method
 :maxdepth: 1
 <!-- :hidden: -->
 
-pm_background/basics
+<!-- pm_background/basics -->
 pm_background/post_processing
-pm_background/unsteady
+pm_background/unsteady_wake
+pm_background/ode_formulation
 ```

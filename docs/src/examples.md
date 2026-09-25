@@ -1,6 +1,6 @@
 # Examples
 
-WORK IN PROGRESS
+<!-- WORK IN PROGRESS -->
 
 ```{toctree}
 :maxdepth: 2
@@ -11,6 +11,7 @@ WORK IN PROGRESS
 
 examples/panel_method
 examples/vlm
+examples/optimization
 <!-- examples/visualization -->
 ```
 

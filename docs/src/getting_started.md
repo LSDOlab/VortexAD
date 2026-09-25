@@ -51,16 +51,16 @@ $ pip install -e .
 | [vedo](https://vedo.embl.es/) | Plotting framework |
 | [Ozone](https://github.com/LSDOlab/ozone) | ODE software for unsteady solver |
 
-```{note}
+<!-- ```{note}
 `VortexAD` automatically installs the `dev_custom` branch of `csdl`, as some of the `csdl` developments have not been pushed to the `main` branch. This branch of CSDL also requires `networkx`, which is automatically installed as well.
-```
+``` -->
 
-```{warning}
+<!-- ```{warning}
 Due to version issues, `VortexAD` does not automatically install the correct branch of `csdl`. We are actively resolving this issue. For now, after installing `VortexAD`, please run the following in the command line:
 
 ```sh
 pip install git+https://github.com/LSDOlab/csdl_alpha.git@dev_custom
-```
+``` -->
 
 
 

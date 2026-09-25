@@ -1,7 +1,7 @@
 /*
 !.gitignore
 !README.md
-!run_optimization.py
+!ex_1_run_optimization.py
 !geometry_function.py
 !/geometry/
 !/post_processing/

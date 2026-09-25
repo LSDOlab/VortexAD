@@ -1,6 +1,10 @@
 # Vortex lattice method
 
-WORK IN PROGRESS
+```{toctree}
+:maxdepth: 1
+
+../_temp/examples/vlm/ex_1_flat_plate
+```
 
 ```{toctree}
 :maxdepth: 1

@@ -67,21 +67,21 @@ src/background
 :hidden:
 
 src/panel_method_use
-src/vlm_use
+<!-- src/vlm_use -->
 
 src/tutorials
 src/examples
 src/best_practices
-src/api
+<!-- src/api -->
 ```
 
-```{toctree}
+<!-- ```{toctree}
 :caption: Extras
 :maxdepth: 1
 :hidden:
 
 src/in_development
-```
+``` -->
 
 
 <!-- <img src="/src/images/lsdolab.png" alt="LSDO Lab logo" width="200"/> -->

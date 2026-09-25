@@ -23,5 +23,5 @@ and add the tutorial files directly into the toctree of this main tutorials page
 :includehidden:
 
 tutorials/panel_method
-tutorials/vlm
+<!-- tutorials/vlm -->
 ```

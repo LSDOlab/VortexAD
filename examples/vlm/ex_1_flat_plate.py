@@ -59,3 +59,8 @@ sim.run()
 L_val = sim[L]
 CL_val = sim[CL]
 CDi_val = sim[CDi]
+
+CL_val_oas = np.array([0.4426841725811703]) # openaerostruct
+CDi_val_oas = np.array([0.005878842561184834]) # openaerostruct 
+assert np.isclose(CL_val, CL_val_oas, rtol=1e-03)
+assert np.isclose(CDi_val, CDi_val_oas, rtol=1e-03)

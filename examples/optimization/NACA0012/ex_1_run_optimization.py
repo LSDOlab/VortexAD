@@ -1,3 +1,10 @@
+'''NACA0012 rectangular wing optimization: 
+
+Example of an optimization demo of the rectangular wing with a NACA0012 airfoil.
+
+
+
+'''
 import csdl_alpha as csdl
 import numpy as np
 import lsdo_function_spaces as lfs

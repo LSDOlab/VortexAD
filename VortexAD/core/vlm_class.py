@@ -46,6 +46,8 @@ default_input_dict = {
     'ref_area': 10., # reference area (l^2, l being the input length unit)
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
+    'drag_type': 'Trefftz',                 # pressure or Trefftz
+    'Trefftz_integration_pts': 5,           # number of Trefftz plane evaluation points per wake element column
 
     # unsteady solver
     'dt': 0.1, # time step (s)
