@@ -3,7 +3,7 @@
 
 If you are not interested in using this repository as a template but only want to use the documentation template, 
 you can just copy the `/docs` directory and the `.readthedocs.yaml` file into your package root.
-However, make sure you have all the dependencies mentioned in the `setup.py` file installed before you build your
+However, make sure you have all the dependencies mentioned in the `setup.py` or `pyproject.toml` file installed before you build your
 documentation.
 
 ## Writing
