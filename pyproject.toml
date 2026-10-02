@@ -54,7 +54,7 @@ docs = [
     'sphinx-autoapi>=3.0',
     'numpydoc',
     'gitpython',
-    'sphinx-collections @ git+https://github.com/anugrahjo/sphinx-collections.git@master',
+#     'sphinx-collections @ git+https://github.com/anugrahjo/sphinx-collections.git@master',
     'sphinxcontrib-bibtex',
 ]
 
