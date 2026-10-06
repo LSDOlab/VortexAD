@@ -64,7 +64,7 @@ default_input_dict = {
     'ref_area': 10.,                        # reference area (l^2, l being the input length unit)
     'ref_chord': 1.,
     'moment_reference': np.zeros(3), 
-    'drag_type': 'Trefftz',                 # pressure or Trefftz
+    'drag_type': 'Trefftz',                 # pressure, Trefftz (3D), Trefftz_2D (2D Biot-Savart), Trefftz_2D_consistent, or both
     'Trefftz_integration_pts': 5,           # number of Trefftz plane evaluation points per wake element column
 
     # steady solver wake relaxation parameters
@@ -94,6 +94,14 @@ output_options_dict = {
     'L': ['lift force (N)', '(num_nodes,)'],
     'Di': ['induced drag force (N)', '(num_nodes,)'],
     'M': ['moment (Nm)', '(num_nodes, 3)'],
+    'CDi_Trefftz': ['3D Trefftz plane induced drag coefficient (unitless)', '(num_nodes,)'],
+    'Di_Trefftz': ['3D Trefftz plane induced drag force (N)', '(num_nodes,)'],
+    'CDi_Trefftz_2D': ['2D Biot-Savart Trefftz plane induced drag coefficient (unitless)', '(num_nodes,)'],
+    'Di_Trefftz_2D': ['2D Biot-Savart Trefftz plane induced drag force (N)', '(num_nodes,)'],
+    'CDi_Trefftz_2D_consistent': ['2D Biot-Savart Trefftz plane induced drag coefficient with lift consistency (unitless)', '(num_nodes,)'],
+    'Di_Trefftz_2D_consistent': ['2D Biot-Savart Trefftz plane induced drag force with lift consistency (N)', '(num_nodes,)'],
+    'L_wake': ['integrated wake circulation lift force (N)', '(num_nodes,)'],
+    'lift_ratio': ['ratio of surface-integrated lift to wake circulation lift (unitless)', '(num_nodes,)'],
 
     # force and pressure DISTRIBUTIONS
     'Cp': ['pressure coefficient distribution (unitless)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
@@ -103,6 +111,8 @@ output_options_dict = {
 
     # flow field information
     'V_mag': ['velocity magnitude at collocation points (m/s)', '(num_nodes, num_panels) or (num_nodes, nc, ns)'],
+    'mu': ['doublet strength distribution (m^2/s)', '(num_nodes, num_panels)'],
+    'mu_w': ['wake doublet jump distribution (m^2/s)', '(num_nodes, num_TE_edges)'],
 
     # geometry/mesh parameters
     'panel center': ['physical coordinate of panel centers (m)', '(num_nodes, num_panels, 3) or (num_nodes, nc, ns, 3)'],

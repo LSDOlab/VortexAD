@@ -38,7 +38,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, wake_plot_params=False, p
     # Cp_min, Cp_max = -1.5, 1.
     # vps.cmap(cmap, Cp_color, on='cells', vmin=Cp_min, vmax=Cp_max)
     vps.cmap(cmap, Cp_color, on=on, vmin=Cp_min, vmax=Cp_max)
-    vps.add_scalarbar("Cp", font_size=40, size=(250,900), pos=(0.025, 0.05), horizontal=False)
+    vps.add_scalarbar("Cp", font_size=40, size=(250,900), pos=((0.025, 0.05), (0.1, 0.95)), horizontal=False)
     # vps.add_scalarbar("Cp", font_size=20, size=(250,900), horizontal=False)
     vp += vps
 

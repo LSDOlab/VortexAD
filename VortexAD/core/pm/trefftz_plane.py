@@ -244,6 +244,116 @@ def trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, cons
 
     return D_Trefftz
 
+def trefftz_plane_drag_2d(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry, Q_inf=None, return_wake_lift=False):
+    '''
+    2D Biot-Savart Cross-Flow Trefftz Plane Induced Drag.
+    
+    Computes induced drag from the kinetic energy of the 2D cross-flow wake:
+        Di = -0.5 * rho * sum(mu_w * v_n * ell)
+    where v_n is the 2D normal velocity induced at the strip midpoints
+    strictly by the wake trailing vortex sheets (point vortices at strip endpoints),
+    eliminating 3D near-field body source and doublet contamination.
+    '''
+    num_nodes = mu.shape[0]
+    num_geom_nodes = 1 if constant_geometry else num_nodes
+
+    TE_edges = mesh_dict['TE_edges']
+    num_TE_edges = len(TE_edges)
+    ns_panels = num_TE_edges
+
+    # Extract doublet jump across span
+    if mu_w.shape[1] > num_TE_edges:
+        dPhi_span = mu_w[:, :num_TE_edges]
+    else:
+        dPhi_span = mu_w
+
+    pc = wake_mesh_dict['panel_corners']
+    # Downstream wake panel corners: indices 1 and 2 are the downstream corners of the wake strip
+    WE_panel_corners = pc[:, -ns_panels:, 1:3]
+
+    y_A = WE_panel_corners[:, :, 0, 1]
+    z_A = WE_panel_corners[:, :, 0, 2]
+    y_B = WE_panel_corners[:, :, 1, 1]
+    z_B = WE_panel_corners[:, :, 1, 2]
+
+    dy = y_B - y_A
+    dz = z_B - z_A
+    ell = (dy**2 + dz**2 + 1e-14)**0.5
+    ny = -dz / ell
+    nz = dy / ell
+
+    y_c = 0.5 * (y_A + y_B)
+    z_c = 0.5 * (z_A + z_B)
+
+    N = num_TE_edges
+    y_c_exp = csdl.expand(y_c, (num_geom_nodes, N, N), 'ai->aij')
+    z_c_exp = csdl.expand(z_c, (num_geom_nodes, N, N), 'ai->aij')
+    y_B_exp = csdl.expand(y_B, (num_geom_nodes, N, N), 'aj->aij')
+    z_B_exp = csdl.expand(z_B, (num_geom_nodes, N, N), 'aj->aij')
+    y_A_exp = csdl.expand(y_A, (num_geom_nodes, N, N), 'aj->aij')
+    z_A_exp = csdl.expand(z_A, (num_geom_nodes, N, N), 'aj->aij')
+
+    # B endpoint (vortex strength +1)
+    dy_B = y_c_exp - y_B_exp
+    dz_B = z_c_exp - z_B_exp
+    r2_B = dy_B**2 + dz_B**2 + 1e-12
+    v_B = -(1.0 / (2.0 * np.pi)) * dz_B / r2_B
+    w_B = +(1.0 / (2.0 * np.pi)) * dy_B / r2_B
+
+    # A endpoint (vortex strength -1)
+    dy_A = y_c_exp - y_A_exp
+    dz_A = z_c_exp - z_A_exp
+    r2_A = dy_A**2 + dz_A**2 + 1e-12
+    v_A = -(1.0 / (2.0 * np.pi)) * dz_A / r2_A
+    w_A = +(1.0 / (2.0 * np.pi)) * dy_A / r2_A
+
+    v_ij = v_B - v_A
+    w_ij = w_B - w_A
+
+    ny_exp = csdl.expand(ny, (num_geom_nodes, N, N), 'ai->aij')
+    nz_exp = csdl.expand(nz, (num_geom_nodes, N, N), 'ai->aij')
+    A_2D = v_ij * ny_exp + w_ij * nz_exp
+
+    if constant_geometry:
+        A_2D_exp = csdl.expand(A_2D[0, :, :], (num_nodes, N, N), 'ij->aij')
+        ell_exp = csdl.expand(ell[0, :], (num_nodes, N), 'j->aj')
+    else:
+        A_2D_exp = A_2D
+        ell_exp = ell
+
+    dPhi_exp = csdl.expand(dPhi_span, (num_nodes, N, N), 'aj->aij')
+    vn = csdl.sum(A_2D_exp * dPhi_exp, axes=(2,))
+
+    integrand = dPhi_span * vn * ell_exp
+    TPI = csdl.sum(integrand, axes=(1,))
+
+    if rho.shape == TPI.shape:
+        rho_vec = rho
+    else:
+        rho_vec = csdl.expand(rho, TPI.shape)
+
+    D_Trefftz_2D = -0.5 * rho_vec * TPI
+
+    if return_wake_lift:
+        dy_abs = ((y_B - y_A)**2 + 1e-14)**0.5
+        dPhi_abs = (dPhi_span**2 + 1e-12)**0.5
+        if constant_geometry:
+            dy_abs_exp = csdl.expand(dy_abs[0, :], (num_nodes, N), 'j->aj')
+        else:
+            dy_abs_exp = dy_abs
+        total_circ = csdl.sum(dPhi_abs * dy_abs_exp, axes=(1,))
+        if Q_inf is not None:
+            if Q_inf.shape == total_circ.shape:
+                Q_inf_vec = Q_inf
+            else:
+                Q_inf_vec = csdl.expand(Q_inf, total_circ.shape)
+            L_wake = rho_vec * Q_inf_vec * total_circ
+        else:
+            L_wake = rho_vec * total_circ
+        return D_Trefftz_2D, L_wake
+
+    return D_Trefftz_2D
+
 def compute_vertical_induced_velocity(eval_pts, mesh_dict, wake_mesh_dict, mu, sigma, mu_w):
     from VortexAD.core.pm.unsteady.compute_wake_velocity import surf_induced_vel_batched, wake_induced_vel_batched
 

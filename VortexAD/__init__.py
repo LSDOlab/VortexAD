@@ -2,7 +2,10 @@ __version__ = '0.0.0'
 from pathlib import Path
 
 # solver classes
-from VortexAD.core.pm_class_tri import PanelMethodTri
+try:
+    from VortexAD.core.pm_class_tri import PanelMethodTri
+except Exception:
+    pass
 from VortexAD.core.pm_class import PanelMethod
 from VortexAD.core.vlm_class import VortexLatticeMethod
 

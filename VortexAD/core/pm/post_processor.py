@@ -238,7 +238,7 @@ def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_
         rho_exp_CM = rho
     CM = moment/(0.5*rho_exp_CM*ref_area*Q_inf_exp**2*ref_chord)
 
-    if drag_type == 'Trefftz':
+    if drag_type in ['Trefftz', 'both']:
         from VortexAD.core.pm.trefftz_plane import trefftz_plane_drag, trefftz_plane_drag_new
         # Di_Trefftz = trefftz_plane_drag(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry, neppwp)
         Di_Trefftz = trefftz_plane_drag_new(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry, neppwp)
@@ -251,6 +251,41 @@ def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_
         
         CDi_Trefftz = Di_Trefftz/(0.5*rho*ref_area*Q_inf**2)
 
+    if drag_type in ['Trefftz_2D', 'Trefftz_2D_consistent', 'both']:
+        from VortexAD.core.pm.trefftz_plane import trefftz_plane_drag_2d
+        if drag_type == 'Trefftz_2D_consistent':
+            Di_Trefftz_2D, L_wake = trefftz_plane_drag_2d(
+                mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry,
+                Q_inf=Q_inf, return_wake_lift=True
+            )
+            if compressibility:
+                if constant_geometry:
+                    denom = beta[:,0]
+                else:
+                    denom = beta
+                L_incomp = L * denom
+            else:
+                L_incomp = L
+
+            lift_ratio = L_incomp / (L_wake + 1e-8)
+
+            # Reconcile Trefftz induced drag to match surface lift:
+            # Di_Trefftz_2D * (lift_ratio**2) ensures the far-field kinetic energy is scaled
+            # to represent the actual aerodynamic lift carried by the lifting surface.
+            Di_Trefftz_2D = Di_Trefftz_2D * (lift_ratio**2)
+            if compressibility:
+                Di_Trefftz_2D = Di_Trefftz_2D / (denom**2)
+        else:
+            Di_Trefftz_2D = trefftz_plane_drag_2d(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, rho, constant_geometry)
+            if compressibility:
+                if constant_geometry:
+                    denom = beta[:,0]
+                else:
+                    denom = beta    
+                Di_Trefftz_2D = Di_Trefftz_2D/denom
+        
+        CDi_Trefftz_2D = Di_Trefftz_2D/(0.5*rho*ref_area*Q_inf**2)
+
 
     # scalar coefficients
     output_dict['CL'] = CL
@@ -262,9 +297,24 @@ def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_
     output_dict['Di'] = Di
     output_dict['M'] = moment
 
-    if drag_type == 'Trefftz':
+    if drag_type in ['Trefftz', 'both']:
         output_dict['Di_Trefftz'] = Di_Trefftz
         output_dict['CDi_Trefftz'] = CDi_Trefftz
+
+    if drag_type in ['Trefftz_2D', 'Trefftz_2D_consistent', 'both']:
+        output_dict['Di_Trefftz_2D'] = Di_Trefftz_2D
+        output_dict['CDi_Trefftz_2D'] = CDi_Trefftz_2D
+        if drag_type in ['Trefftz_2D', 'Trefftz_2D_consistent']:
+            output_dict['Di_Trefftz'] = Di_Trefftz_2D
+            output_dict['CDi_Trefftz'] = CDi_Trefftz_2D
+        if drag_type == 'Trefftz_2D_consistent':
+            output_dict['Di_Trefftz_2D_consistent'] = Di_Trefftz_2D
+            output_dict['CDi_Trefftz_2D_consistent'] = CDi_Trefftz_2D
+            output_dict['L_wake'] = L_wake
+            output_dict['lift_ratio'] = lift_ratio
+
+    output_dict['mu'] = mu
+    output_dict['mu_w'] = mu_w
 
     # force + pressure distributions
     output_dict['Cp'] = Cp

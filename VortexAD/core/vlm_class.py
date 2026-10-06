@@ -7,7 +7,10 @@ try:
 except:
     pass
 
-from VortexAD.utils.plotting.plot_vlm import plot_wireframe
+try:
+    from VortexAD.utils.plotting.plot_vlm import plot_wireframe
+except Exception:
+    pass
 
 default_input_dict = {
     # flow properties
