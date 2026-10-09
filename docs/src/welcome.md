@@ -20,6 +20,8 @@ VortexAD holds various potential flow methods in different modes, summarized in 
 
 
 # Cite us
+
+For information regarding the steady panel code, please refer to this paper:
 ```none
 @inbook{Scotzniovsky_panel_method_2025,
         author = {Luca Scotzniovsky and John T. Hwang},
@@ -32,6 +34,20 @@ VortexAD holds various potential flow methods in different modes, summarized in 
         doi = {10.2514/6.2025-3021},
         URL = {https://arc.aiaa.org/doi/abs/10.2514/6.2025-3021},
         eprint = {https://arc.aiaa.org/doi/pdf/10.2514/6.2025-3021}
+}
+```
+
+For information regarding the unsteady free-wake solver, please refer to this paper:
+```none
+@inbook{scotzniovsky2026VortexAD,
+        author = {Luca Scotzniovsky and John T. Hwang},
+        title = {VortexAD: A Graph-Based Linear Potential Flow Analysis Framework for Large-Scale MDO},
+        booktitle = {AIAA AVIATION 2026 Forum},
+        chapter = {},
+        pages = {},
+        doi = {10.2514/6.2026-4642},
+        URL = {https://arc.aiaa.org/doi/abs/10.2514/6.2026-4642},
+        eprint = {https://arc.aiaa.org/doi/pdf/10.2514/6.2026-4642},
 }
 ```
 

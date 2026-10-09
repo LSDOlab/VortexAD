@@ -62,16 +62,16 @@ default_input_dict = {
 
     # others
     'ref_area': 10.,                        # reference area (l^2, l being the input length unit)
-    'ref_chord': 1.,
-    'moment_reference': np.zeros(3), 
+    'ref_chord': 1.,                        # reference chord
+    'moment_reference': np.zeros(3),        # reference point for moment computation
     'drag_type': 'Trefftz',                 # pressure or Trefftz
     'Trefftz_integration_pts': 5,           # number of Trefftz plane evaluation points per wake element column
 
     # steady solver wake relaxation parameters
     'wake_relaxation': False,               # wake relaxation flag
-    'K': 0.5,                               # between 0.5 and 5
+    'K': 0.5,                               # relaxation parameter, between 0.5 and 5
     'num_wake_planes': 5,                   # number of wake planes 
-    'num_wake_iterations': 3,               # number of wake planes 
+    'num_wake_iterations': 3,               # number of wake iterations 
 
 
     # unsteady solver
@@ -79,11 +79,10 @@ default_input_dict = {
     'nt': 10,                               # number of time steps
     'store_state_history': True,            # flag to store state history
     'core_radius': 1.e-3,                   # vortex core radius
-    'vc_parameters': [1.25643, 0, 2.5],     # alpha, a1, bqs from core model
+    'vc_parameters': [1.25643, 0, 2.5],     # alpha, a1, bqs from core model (referred to in paper)
     'free_wake': False,
     'dissipation': False,
     'integration_method': 'ForwardEuler'
-
 }
 
 output_options_dict = {

@@ -7,9 +7,11 @@ output_options_dict = {
     # forces and coefficients:
     'CL': ['lift coefficient (unitless)', '(num_nodes,)'],
     'CDi': ['induced drag coefficient (unitless)', '(num_nodes,)'],
+    'CDi_Trefftz': ['Trefftz-plane induced drag coefficient (unitless)', '(num_nodes,)'],
     'CM': ['moment coefficient (unitless)', '(num_nodes, 3)'],
     'L': ['lift force (N)', '(num_nodes,)'],
     'Di': ['induced drag force (N)', '(num_nodes,)'],
+    'Di_Trefft': ['Trefftz-plane induced drag force (N)', '(num_nodes,)'],
     'M': ['moment (Nm)', '(num_nodes, 3)'],
 
     # force and pressure DISTRIBUTIONS
@@ -28,9 +30,11 @@ The table below summarizes each outout. The shape of each output is dictated by 
 |:---|:---|:---|:---|
 | `CL` | Lift coefficient | None | `(num_nodes,)` |
 | `CDi` | Induced drag <br/> coefficient | None | `(num_nodes,)` |
+| `CDi_Trefftz` | Trefftz-plane induced <br/> drag coefficient | None | `(num_nodes,)` |
 | `CM` | Moment coefficient | None | `(num_nodes,3)` |
 | `L` | Lift force | `N` | `(num_nodes,)` |
 | `Di` | Induced drag <br/> force | `N` | `(num_nodes,)` |
+| `Di_Trefftz` | Trefftz-plane induced <br/> drag force | `N` | `(num_nodes,)` |
 | `M` | Moment | `Nm` | `(num_nodes,3)` |
 | `Cp` | Pressure coefficient <br/> distribution | None | `(num_nodes, num_panels)` |
 | `panel_forces` | Panel forces | `N` | `(num_nodes, num_panels, 3)` |
