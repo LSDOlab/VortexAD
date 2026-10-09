@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import csdl_alpha as csdl
 
@@ -103,6 +104,6 @@ def test_panel_method_identity_basis():
     print('CL:', CL_val)
     print('CDi:', CDi_val)
     print('CDi (Trefftz):', CDi_T_val)
-    exit()
-    panel_method.plot(CP_val, bounds=[-1.5,1])
-    panel_method.plot(mu_val)
+    # exit()
+    # panel_method.plot(CP_val, bounds=[-1.5,1])
+    # panel_method.plot(mu_val)
