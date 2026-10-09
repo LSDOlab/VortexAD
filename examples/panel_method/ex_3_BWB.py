@@ -18,7 +18,7 @@ from VortexAD import find_cell_adjacency, TE_detection
 import meshio
 
 
-manual_mesh_upload = True
+manual_mesh_upload = False
 reuse_AIC = False
 
 # instantiate recorder to assemble the graph
@@ -27,7 +27,7 @@ recorder.start()
 
 # set up input dictionary
 # file_name = 'transport_bwb_no_wingtip.stl'
-file_name = 'transport_bwb_quad_no_wingtip.stl'
+file_name = 'transport_bwb_quad_no_wingtip.msh'
 mesh_file_path = str(SAMPLE_GEOMETRY_PATH) + '/pm/' + file_name
 
 if manual_mesh_upload:
@@ -58,15 +58,7 @@ if manual_mesh_upload:
     
     
     default_panel_mesh = csdl.Variable(value=points_orig)
-    
-    x_scaler = csdl.Variable(value=np.array([1.]))
-    y_scaler = csdl.Variable(value=np.array([1.]))
-    z_scaler = csdl.Variable(value=np.array([1.]))
-    
-    panel_mesh = csdl.Variable(value=points_orig)
-    panel_mesh = panel_mesh.set(csdl.slice[:,0], default_panel_mesh[:,0]*x_scaler)
-    panel_mesh = panel_mesh.set(csdl.slice[:,1], default_panel_mesh[:,1]*y_scaler)
-    panel_mesh = panel_mesh.set(csdl.slice[:,2], default_panel_mesh[:,2]*z_scaler)
+    panel_mesh = default_panel_mesh
 
 
 reuse_AIC = False
@@ -132,7 +124,7 @@ Di_T = outputs['Di_Trefftz']
 CDi_T = outputs['CDi_Trefftz']
 
 # csdl-jax stuff
-inputs = [pitch, x_scaler, y_scaler, z_scaler]
+inputs = [pitch]
 # outputs = [CL, CDi, CP, L, Di]
 outputs = [CL, CDi, L, Di]
 outputs.extend([Di_T, CDi_T])
@@ -157,20 +149,6 @@ print('CL:', CL_val)
 print('CDi:', CDi_val)
 print('L:', L_val)
 print('Di:', Di_val)
-
-
-
-x_scaler_vals = np.array([0.8, 0.9, 0.95, 1.0, 1.1, 1.2])
-for val in x_scaler_vals:
-    sim[x_scaler] = val
-    asdf = sim.run()
-    print('========')
-    print(f'L: {sim[L]}')
-    print(f'CL: {sim[CL]}')
-    print(f'Di: {sim[Di]}')
-    print(f'CDi: {sim[CDi]}')
-    print(f'Di_T: {sim[Di_T]}')
-    print(f'CDi_T: {sim[CDi_T]}')
 
 exit()
 

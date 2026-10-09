@@ -13,6 +13,7 @@ def TE_detection(points, cells, edges2cells, points2cells, threshold_theta=75,
         combined_cells += cells[cell_type].tolist()
 
     cell_normal = np.zeros((num_cells,3))
+    cell_center = np.zeros((num_cells,3))
     cell_normal_norm = np.zeros((num_cells,))
     for i, cell_pts in enumerate(combined_cells):
         if len(cell_pts) == 3:
@@ -25,6 +26,9 @@ def TE_detection(points, cells, edges2cells, points2cells, threshold_theta=75,
         cell_normal_norm_iter = np.linalg.norm(cell_normal_iter)
         cell_normal[i,:] = cell_normal_iter
         cell_normal_norm[i] = cell_normal_norm_iter
+
+        cell_center_iter = np.mean(points[cell_pts,:], axis=0)
+        cell_center[i] = cell_center_iter
             
     # cosine of TE threshold angle
     theta_t = np.deg2rad(threshold_theta)
@@ -129,13 +133,15 @@ def TE_detection(points, cells, edges2cells, points2cells, threshold_theta=75,
         # lower: other vertex is below the edge
         #   - normal vector points down
 
-        if n1[2] > 0:
+        if n1[2] > 0 and cell_center[cell_1,2] > cell_center[cell_2,2]:
             upper_TE_cells.append(int(cell_1))
             lower_TE_cells.append(int(cell_2))
-        # elif n2[2] > 0:
-        else:
+        elif n2[2] > 0 and cell_center[cell_2,2] > cell_center[cell_1,2]:
+        # else:
             upper_TE_cells.append(int(cell_2))
             lower_TE_cells.append(int(cell_1))
+        else:
+            continue
 
         edge_pt_0 = points[edge[0],:]
         edge_pt_1 = points[edge[1],:]
