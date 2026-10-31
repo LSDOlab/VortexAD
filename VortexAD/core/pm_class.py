@@ -528,10 +528,12 @@ class PanelMethod(object):
         self.generate_wake_connectivity()
 
     
-    def plot(self, data_to_plot, bounds=None, wake_plot_params=False, cmap='jet', camera=False, screenshot=False):
+    def plot(self, data_to_plot, bounds=None, wake_plot_params=False, cmap='jet', camera=False, screenshot=False, interactive=None):
         '''
         Plotting function for scalar field variables.
         '''
+        if interactive is None:
+            interactive = False if screenshot else True
         from VortexAD.utils.plotting.plot_unstructured import plot_pressure_distribution
         # plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=self.cells, bounds=bounds, interactive=True, top_view=False, cmap=cmap)
         cell_types = self.cells.keys()
@@ -540,7 +542,7 @@ class PanelMethod(object):
         for cell_type in cell_types:
             combined_cells += self.cells[cell_type].tolist()
         plot_pressure_distribution(self.points_orig, data_to_plot, connectivity=combined_cells, wake_plot_params=wake_plot_params, bounds=bounds, 
-                                   interactive=True, top_view=False, cmap=cmap, camera=camera, screenshot=screenshot)
+                                   interactive=interactive, top_view=False, cmap=cmap, camera=camera, screenshot=screenshot)
 
     def plot_unsteady(self, mesh, wake_mesh, surface_data, wake_data, wake_form='grid', bounds=None, cmap='jet', interactive=False, camera=False, screenshot=False, name='panel_method'):
         from VortexAD.utils.plotting.plot_unstructured import plot_wireframe

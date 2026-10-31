@@ -40,12 +40,22 @@ def mu_sigma_solver(num_nodes, mesh_dict, solver_options_dict, mode='structured'
     if batch_size and ROM:
         sigma_nn = sigma[0,:]
         UT, U = ROM[0], ROM[1]
-        # RHS_red, AIC_red = compute_batched_aic_POD(mesh_dict, wake_mesh_dict, sigma_nn, batch_size, ROM)
-        RHS_red, AIC_red = compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma_nn, batch_size, ROM)
-        mu_red = csdl.solve_linear(AIC_red, RHS_red)
-        mu = csdl.matvec(U, mu_red).reshape(sigma.shape)
-        # print(mu.shape)
-        # exit()
+        # RHS_red, AIC_red = compute_batched_aic_POD(mesh_dict, wake_mesh_dict, sigma_nn, batch_size, ROM) # OLD, DOESN'T WORK?
+        # RHS_red, AIC_red = compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma_nn, batch_size, ROM) # USES sigma_nn
+        RHS_red, AIC_red = compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, ROM, num_nodes_geom)
+
+        loop_vals = [np.arange(num_nodes, dtype=int).tolist()]
+        with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+            i = loop_builder.get_loop_indices()
+            if constant_geometry:
+                A = AIC_red[i,:,:]
+            else:
+                A = AIC_red[0,:,:]
+            mu_red = csdl.solve_linear(A, RHS_red[i,:])
+            mu = csdl.matvec(U, mu_red)
+        mu = loop_builder.add_stack(mu)
+        loop_builder.finalize()
+        mu = mu.reshape(sigma.shape)
 
         upper_TE_cell_ind = mesh_dict['upper_TE_cells']
         lower_TE_cell_ind = mesh_dict['lower_TE_cells']
@@ -2048,7 +2058,7 @@ def compute_batched_aic_POD(mesh_dict, wake_mesh_dict, sigma, batch_size, ROM):
 
     return RHS_red, AIC_red
 
-def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, ROM):
+def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, ROM, constant_geometry):
 
     cells = mesh_dict['cell_point_indices'] # keys are cell types, entries are points for each cell
     cell_types = list(cells.keys())
@@ -2060,8 +2070,11 @@ def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, RO
     lower_TE_cell_ind = mesh_dict['lower_TE_cells']
     num_wake_panels = wake_mesh_dict['num_panels']
     UT, U = ROM[0], ROM[1]
-    num_nodes = 1 # NOTE: CHANGE
-    phi_T_AIC = csdl.Variable(shape=(num_nodes, UT.shape[0], num_tot_panels), value=0.)
+    num_nodes = sigma.shape[0] # NOTE: CHANGE
+    num_nodes_geom = num_nodes
+    if constant_geometry:
+        num_nodes_geom = 1
+    phi_T_AIC = csdl.Variable(shape=(num_nodes_geom, UT.shape[0], num_tot_panels), value=0.)
     # RHS = csdl.Variable(shape=(num_tot_panels, 1), value=0.)
     # NOTE: don't forget num_nodes here
 
@@ -2086,7 +2099,8 @@ def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, RO
 
     phi_T_AIC_batch_func = csdl.experimental.batch_function(
         compute_phi_T_aic_mat_mat, 
-        batch_size=batch_size, 
+        # batch_size=batch_size, 
+        batch_size=2, 
         batch_dims=[None] + [1]*8 + [None, None]
     )
 
@@ -2115,7 +2129,7 @@ def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, RO
         SM = mesh_dict['SM_' + cell_type_j]
 
         # RHS matvec assembly here
-        RHS_cell = RHS_batch_func(
+        RHS_cell_batched = RHS_batch_func(
             coll_point_eval,
             coll_point,
             panel_corners,
@@ -2126,10 +2140,18 @@ def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, RO
             SL,
             SM,
             # sigma[:, start_j:stop_j],
-            sigma[start_j:stop_j], # for some reason we did sigma[0,:] outside of this function
+            sigma[:,start_j:stop_j], # for some reason we did sigma[0,:] outside of this function
             'source'
         ) * -1.
-        RHS_cell = RHS_cell.reshape((num_cells_j,1))
+        # print(RHS_cell_batched.shape) # shape of (num_tot_panels, num_nodes, 1)
+        loop_vals = [np.arange(num_nodes, dtype=int).tolist()]
+        with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+            i = loop_builder.get_loop_indices()
+            RHS_cell = RHS_cell_batched[:,i,:]
+        RHS_cell = loop_builder.add_stack(RHS_cell)
+        loop_builder.finalize()
+
+
         RHS_list.append(RHS_cell)
 
         # assembly of phi^T * AIC_mu here
@@ -2149,28 +2171,47 @@ def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, RO
             SM,
             UT,
             'doublet'
-        )
+        ) # shape of (num_cells_j//batch_size, num_nodes_geom, basis_size, batch_size)
+        # print(phi_T_AIC_cell.shape)
+
+        # convert to (basis_size, num_cells_j//batch_size, num_nodes_geom, batch_size)
         loop_vals = [np.arange(U.shape[1], dtype=int).tolist()]
-        # loop_vals = [np.arange(num_cells_j, dtype=int).tolist()]
+            # loop_vals = [np.arange(num_cells_j, dtype=int).tolist()]
         with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
             i = loop_builder.get_loop_indices()
-            phi_T_AIC_ind = phi_T_AIC_cell[:,i,:]
-        
-        phi_T_AIC_ind = loop_builder.add_stack(phi_T_AIC_ind)
+            phi_T_AIC_reorder_1 = phi_T_AIC_cell[:,:,i,:]
+
+        phi_T_AIC_reorder_1 = loop_builder.add_stack(phi_T_AIC_reorder_1)
         loop_builder.finalize()
+
+        # then convert to (num_nodes_geom, basis_size, num_cells_j//batch_size, batch_size)
+        loop_vals = [np.arange(num_nodes_geom, dtype=int).tolist()]
+        with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+            i = loop_builder.get_loop_indices()
+            phi_T_AIC_reorder_2 = phi_T_AIC_reorder_1[:,:,i,:]
+        phi_T_AIC_reorder_2 = loop_builder.add_stack(phi_T_AIC_reorder_2)
+        loop_builder.finalize()
+
+        # and then reshape into into (num_nodes_geom, basis_size, num_cells_j)
         # phi_T_AIC = phi_T_AIC_ind.reshape(UT.shape)
-        
+        phi_T_AIC_ind = phi_T_AIC_reorder_2.reshape((num_nodes_geom, U.shape[1], num_cells_j))
+
         phi_T_AIC = phi_T_AIC.set(
             csdl.slice[:,:,start_j:stop_j],
-            # phi_T_AIC_cell
-            phi_T_AIC_ind.reshape((num_nodes, U.shape[1], num_cells_j))
+            phi_T_AIC_ind
+            # phi_T_AIC_reorder_2.reshape((num_nodes, U.shape[1], num_cells_j))
         )
+
+        start_j += num_cells_j
 
     RHS_full = sum(RHS_list)
 
-    RHS_red = csdl.matvec(UT, RHS_full)
-    AIC_red_surf = csdl.matmat(phi_T_AIC[0,:], U)
-
+    # RHS_red = csdl.matvec(UT, RHS_full)
+    RHS_red = csdl.einsum(UT, RHS_full, action='ij,ajk->aik') # shape of (num_nodes, basis_size, 1)
+    # AIC_red_surf = csdl.matmat(phi_T_AIC[0,:], U)
+    AIC_red_surf = csdl.einsum(phi_T_AIC, U, action='ijk,kl->ijl') # shape of (num_nodes_geom, num_basis, num_basis)
+    
+    # exit()
     # computing wake AIC matrix with the batched POD
     coll_point_wake = wake_mesh_dict['panel_center'] # (nn, num_wake_panels, 3)
     panel_corners_wake = wake_mesh_dict['panel_corners'] # (nn, num_wake_panels, 3, 3) 
@@ -2198,26 +2239,40 @@ def compute_batched_aic_POD_new(mesh_dict, wake_mesh_dict, sigma, batch_size, RO
         UT,
         'wake'
     )
+    # print(phi_T_AIC_wake.shape)
+    # shape of (nw//batch_size, num_nodes_geom, basis_size, batch_size)
+    # shape of (nw//batch_size, num_nodes_geom, basis_size, batch_size)
+    # convert to (basis_size, nw//batch_size, num_nodes_geom, batch_size)
+    # then convert to (num_nodes_geom, basis_size, nw//batch_size, batch_size)
+    # and then reshape into into (num_nodes_geom, basis_size, nw)
 
     loop_vals = [np.arange(U.shape[1], dtype=int).tolist()]
     with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
         i = loop_builder.get_loop_indices()
-        phi_T_AIC_ind_wake = phi_T_AIC_wake[:,i,:]
-    
-    phi_T_AIC_ind_wake = loop_builder.add_stack(phi_T_AIC_ind_wake)
+        phi_T_AIC_wake_reorder_1 = phi_T_AIC_wake[:,:,i,:]
+    phi_T_AIC_wake_reorder_1 = loop_builder.add_stack(phi_T_AIC_wake_reorder_1)
     loop_builder.finalize()
-    phi_T_AIC_wake = phi_T_AIC_ind_wake.reshape(UT.shape[0], nw)
+
+    loop_vals = [np.arange(num_nodes_geom, dtype=int).tolist()]
+    with csdl.experimental.enter_loop(vals=loop_vals) as loop_builder:
+        i = loop_builder.get_loop_indices()
+        phi_T_AIC_wake_reorder_2 = phi_T_AIC_wake_reorder_1[:,:,i,:]
+    phi_T_AIC_wake_reorder_2 = loop_builder.add_stack(phi_T_AIC_wake_reorder_2)
+    loop_builder.finalize()
+
+    phi_T_AIC_wake = phi_T_AIC_wake_reorder_2.reshape(num_nodes_geom, UT.shape[0], nw)
 
     # phi_T_AIC_wake = csdl.einsum(phi_T_AIC_wake, action='ijk->jik').reshape((UT.shape[0], nw))
     U_upper_TE_cells = U[upper_TE_cell_ind,:]
     U_lower_TE_cells = U[lower_TE_cell_ind,:]
     U_TE_diff = U_upper_TE_cells-U_lower_TE_cells
 
-    AIC_red_wake = csdl.matmat(phi_T_AIC_wake, U_TE_diff)
+    # AIC_red_wake = csdl.matmat(phi_T_AIC_wake, U_TE_diff)
+    AIC_red_wake = csdl.einsum(phi_T_AIC_wake, U_TE_diff, action='ijk,kl->ijl')
 
     AIC_red = AIC_red_surf + AIC_red_wake
     # AIC_red = AIC_red_surf
-
+    # exit()
     return RHS_red, AIC_red
 
 def compute_aic_mat_vec(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
@@ -2330,12 +2385,11 @@ def compute_aic_mat_vec(coll_point, panel_center, panel_corners, panel_x_dir, pa
     # A = AIC_vec.reshape((num_nodes, num_eval_pts, num_induced_pts))
     # Av = csdl.einsum(A,v,action='ijk,ik->ij')
     A_out = AIC_vec.reshape((num_eval_pts, num_induced_pts))
-    # print(v.shape)
-    # print(A_out.shape)
 
     # Av = csdl.einsum(A_out,v,action='jk,k->j')
-    Av = csdl.matvec(A_out,v)
-
+    # Av = csdl.matvec(A_out,v)
+    Av = csdl.einsum(A_out,v,action='jk,ak->aj') # a is the num_nodes
+    # exit()
     return Av
 
 def compute_phi_T_aic_mat_mat(coll_point, panel_center, panel_corners, panel_x_dir, panel_y_dir,
@@ -2444,15 +2498,17 @@ def compute_phi_T_aic_mat_mat(coll_point, panel_center, panel_corners, panel_x_d
             S_list, 
             mode='potential'
         )
-
+    # print(AIC_vec.shape) # shape of (num_nodes, num_interactions)
     # A = AIC_vec.reshape((num_nodes, num_eval_pts, num_induced_pts))
     # Av = csdl.einsum(A,v,action='ijk,ik->ij')
-    A_out = AIC_vec.reshape((num_eval_pts, num_induced_pts))
+    A_out = AIC_vec.reshape((num_nodes, num_eval_pts, num_induced_pts))
     # print(UT.shape)
     # print(A_out.shape)
     # exit()
     # UT_A = csdl.einsum(UT, A_out, action='jk,ki->ji')
-    UT_A = csdl.matmat(UT, A_out)
-    # exit()
-    # Av_no_num_nodes = Av[0,:]
+    # UT_A = csdl.matmat(UT, A_out)
+    # print(UT.shape) # shape of (basis_size, num_panels)
+    UT_A = csdl.einsum(UT, A_out, action='jk,aki->aji')
+    # print(UT_A.shape) # shape of (num_nodes, basis_size, num_induced_pts (or number of columns))
+
     return UT_A

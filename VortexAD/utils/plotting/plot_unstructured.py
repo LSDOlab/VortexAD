@@ -18,7 +18,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, wake_plot_params=False, p
         # bg2='white',
         # axes=0,
         #  pos=(0, 0),
-        offscreen=False,
+        offscreen=True if screenshot else False,
         interactive=1,
         size=(2500,2500))
 
@@ -137,7 +137,7 @@ def plot_pressure_distribution(mesh, Cp, connectivity, wake_plot_params=False, p
     # vp.show(axs, elevation=-60, azimuth=-90, roll=90,
     #         axes=False, interactive=False, zoom=True)  # render the scene
     if camera:
-        vp.show(vps, camera=camera, interactive=interactive, screenshot=screenshot)  # render the scene
+        vp.show(vps, camera=camera, interactive=interactive)  # render the scene
     elif top_view:
         vp.show(axs, elevation=0, azimuth=0, roll=90,
                 axes=False, interactive=interactive)  # render the scene
@@ -145,8 +145,11 @@ def plot_pressure_distribution(mesh, Cp, connectivity, wake_plot_params=False, p
         vp.show(axs, elevation=0, azimuth=-45, roll=90,
                 axes=False, interactive=interactive)  # render the scene
     else:
-        show(vps, elevation=-45, azimuth=-45, roll=45,
-                axes=False, interactive=interactive, screenshot=screenshot)  # render the scene
+        vp.show(elevation=-45, azimuth=-45, roll=45,
+                axes=False, interactive=interactive)  # render the scene
+    if screenshot:
+        vp.screenshot(screenshot)
+        vp.close()
     # video.add_frame()  # add individual frame
     # # time.sleep(0.1)
     # # vp.interactive().close()
@@ -180,7 +183,7 @@ def plot_wireframe(mesh, wake_mesh, surface_data, wake_data, connectivity, wake_
             # bg2='white',
             # axes=0,
             #  pos=(0, 0),
-            offscreen=False,
+            offscreen=True if screenshot else False,
             interactive=1,
             size=(2500,2500))
 
@@ -314,7 +317,7 @@ def plot_wireframe_old(mesh, wake_mesh, mu, mu_wake, connectivity, nt, interacti
             # bg2='white',
             # axes=0,
             #  pos=(0, 0),
-            offscreen=False,
+            offscreen=True if screenshot else False,
             interactive=1,
             size=(2500,2500))
 
