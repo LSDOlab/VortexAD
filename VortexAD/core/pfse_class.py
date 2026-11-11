@@ -62,7 +62,7 @@ default_input_dict = {
 
 class PFSE(object):
     def __init__(self, solver_input_dict):
-        options_dict = default_input_dict
+        options_dict = default_input_dict.copy()
         for key in solver_input_dict.keys():
             options_dict[key] = solver_input_dict[key]
         self.options_dict = options_dict
