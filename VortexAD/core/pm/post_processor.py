@@ -280,4 +280,14 @@ def unstructured_post_processor(mesh_dict, wake_mesh_dict, mu, sigma, mu_w, num_
     output_dict['qm'] = qm
     output_dict['qn'] = qn
 
+    # velocities:
+    V_global = (
+        csdl.expand(Ql, panel_x_dir.shape, 'jk->jka') * panel_x_dir
+        + csdl.expand(Qm, panel_y_dir.shape, 'jk->jka') * panel_y_dir
+        + csdl.expand(Qn, panel_normal.shape, 'jk->jka') * panel_normal
+    )
+    output_dict['Vx'] = V_global[:, :, 0]
+    output_dict['Vy'] = V_global[:, :, 1]
+    output_dict['Vz'] = V_global[:, :, 2]
+
     return output_dict
